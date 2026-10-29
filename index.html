@@ -10,7 +10,7 @@
 @media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2027;--tx:#e6e8eb;--mut:#9aa3af;--ac:#5b9bff;--bd:#2a313b;--dg:#f87171}}
 *{box-sizing:border-box}
 body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
-.wrap{max-width:1000px;margin:0 auto;padding:12px}
+.wrap{max-width:1200px;margin:0 auto;padding:12px}
 .box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin:12px 0}
 .center{max-width:380px;margin:12vh auto 0}
 h1{font-size:20px;margin:0 0 12px}
@@ -49,14 +49,18 @@ a{color:var(--ac)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111c;color:#fff;padding:8px 16px;border-radius:20px;font-size:14px;z-index:30}
 .key{font:15px ui-monospace,monospace;word-break:break-all;background:var(--bg);border:1px dashed var(--bd);border-radius:8px;padding:12px;margin:10px 0}
 .lst{background:var(--card);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
-.lh,.li{display:grid;grid-template-columns:minmax(0,2.4fr) minmax(0,1.6fr) minmax(0,1fr) 112px;column-gap:12px;align-items:center}
+.lh,.li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr) minmax(0,1.6fr) minmax(0,1.7fr) minmax(0,1.6fr) 132px;column-gap:12px;align-items:center}
 .lh{padding:8px 12px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--bd);user-select:none}
 .lh>div[data-act]{cursor:pointer}
 .li{padding:10px 12px;border-bottom:1px solid var(--bd)}
 .li:last-child{border-bottom:0}
 .li:hover{background:rgba(127,127,127,.06)}
 .li .t{font-weight:600;cursor:pointer;word-break:break-word}
-.li .c-u{color:var(--mut);word-break:break-all}
+.li .c-u,.li .c-p{display:flex;align-items:center;gap:2px;flex-wrap:wrap;word-break:break-all}
+.ico{background:transparent;border:0;padding:2px 6px;font-size:15px;line-height:1.2;border-radius:6px;cursor:pointer;color:var(--tx)}
+.ico:hover{background:var(--bd)}
+.li .c-g{display:flex;flex-wrap:wrap;gap:4px}
+.li .c-g .pill{margin:0}
 .li .c-a{display:flex;gap:4px;justify-content:flex-end}
 .li .c-a button{padding:6px 9px;font-size:14px}
 .li .tag{margin:0}
@@ -65,8 +69,10 @@ a{color:var(--ac)}
 .mob,.sm-only{display:none}
 @media(max-width:700px){
   .lh,.hm{display:none}.sm-only{display:inline}.mob{display:block}
-  .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u";row-gap:2px}
-  .li .c-t{grid-area:t}.li .c-a{grid-area:a}.li .c-u{grid-area:u;font-size:14px}
+  .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u" "p p" "g g";row-gap:4px}
+  .li .c-t{grid-area:t}.li .c-a{grid-area:a}.li .c-g{grid-area:g}
+  .li .c-u{grid-area:u;font-size:14px;color:var(--mut)}.li .c-p{grid-area:p;font-size:14px}
+  .li .c-g:empty{display:none}
 }
 </style>
 </head>
@@ -476,7 +482,7 @@ function logout(msg) {
 /* ---------- ecranul principal ---------- */
 function viewMain() {
   app().innerHTML = `<div class="wrap"><div class="bar"><div class="row">
-    <input id="q" placeholder="Caută… (#tag pentru tag-uri)" autocomplete="off">
+    <input id="q" placeholder="Caută după titlu, utilizator sau tag…" autocomplete="off">
     <button id="add" title="Adaugă">＋</button>
     <button class="sec" id="sync" title="Sincronizează">⟳</button>
     <button class="sec" data-act="menu" title="Meniu">☰</button>
@@ -519,30 +525,29 @@ function renderList() {
   if (!items.length) { el.innerHTML = `<div class="st">${all.length ? "Niciun rezultat." : "Nu ai nicio parolă vizibilă. Apasă ＋ ca să adaugi prima."}</div>`; return; }
   const mems = members(), arrow = k => S.sort.k === k ? (S.sort.d > 0 ? " ▲" : " ▼") : "";
   const rows = items.map(e => {
-    const d = e.d, o = S.open === e.id, tags = d.tags || [], cn = catName(catOf(d));
+    const d = e.d, o = S.open === e.id, tags = d.tags || [], cn = catName(catOf(d)), sh = !!S.shown[e.id];
     const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).join(", "))}`).join("<br>") || "Fără istoric.";
     return `<div class="li" data-id="${e.id}">
-      <div class="c-t"><div class="t" data-act="toggle">${esc(d.title)}</div>
-        ${tags.length ? `<div>${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}</div>
-      <div class="c-u">${esc(d.user)}<span class="sm-only"> · ${esc(cn)}</span></div>
       <div class="c-c hm"><span class="tag">${esc(cn)}</span></div>
-      <div class="c-a"><button class="sm" data-act="cu" title="Copiază utilizatorul">👤</button><button class="sm" data-act="cp" title="Copiază parola">🔑</button><button class="sm sec" data-act="toggle" title="Detalii">${o ? "▴" : "▾"}</button></div>
+      <div class="c-t"><div class="t" data-act="toggle">${esc(d.title)}</div><span class="sm-only tag">${esc(cn)}</span></div>
+      <div class="c-u"><span class="un">${esc(d.user)}</span>${d.user ? '<button class="ico" data-act="cu" title="Copiază utilizatorul">📋</button>' : ""}</div>
+      <div class="c-p"><span class="pw">${sh ? esc(d.pass) : "••••••••"}</span><button class="ico" data-act="show" title="Arată / ascunde parola">${sh ? "🙈" : "👁"}</button><button class="ico" data-act="cp" title="Copiază parola">📋</button></div>
+      <div class="c-g">${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>
+      <div class="c-a">${canEdit(e) ? '<button class="sm sec" data-act="edit" title="Editează">✏️</button><button class="sm dg" data-act="del" title="Șterge">🗑</button>' : ""}<button class="sm sec" data-act="toggle" title="Detalii">${o ? "▴" : "▾"}</button></div>
       ${o ? `<div class="c-d det">
         ${d.url ? `<div>🌐 <a href="${esc(/^https?:/i.test(d.url) ? d.url : "https://" + d.url)}" target="_blank" rel="noopener">${esc(d.url)}</a></div>` : ""}
-        <div>🔑 <span class="pw">${S.shown[e.id] ? esc(d.pass) : "••••••••••"}</span> <button class="sm sec" data-act="show">${S.shown[e.id] ? "Ascunde" : "Arată"}</button></div>
         ${d.notes ? `<div style="color:var(--mut);white-space:pre-wrap">${esc(d.notes)}</div>` : ""}
         <div class="meta">Creat de <b>${esc(d.createdBy || "—")}</b>, ${esc(fmt(d.created))}<br>Modificat de <b>${esc(d.updatedBy || "—")}</b>, ${esc(fmt(d.updated))}</div>
         <div><a href="#" data-act="hist">${S.hist === e.id ? "Ascunde istoricul" : "Istoric modificări"}</a></div>
         ${S.hist === e.id ? `<div class="meta">${hist}</div>` : ""}
         ${isAdmin() ? `<div class="acc"><div class="meta"><b>Vizibil pentru:</b></div>
           ${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}>${esc(u.name)}</label>`).join("") || '<div class="meta">Niciun membru încă.</div>'}
-          ${mems.length ? '<button class="sm sec" data-act="acc">Aplică accesul</button>' : ""}</div>` : ""}
-        ${canEdit(e) ? `<div class="acts"><button class="sm sec" data-act="edit">Editează</button><button class="sm dg" data-act="del">Șterge</button></div>` : ""}</div>` : ""}
+          ${mems.length ? '<button class="sm sec" data-act="acc">Aplică accesul</button>' : ""}</div>` : ""}</div>` : ""}
     </div>`;
   }).join("");
   const opt = (v, l) => `<option value="${v}"${v === S.sort.k + "|" + S.sort.d ? " selected" : ""}>${l}</option>`;
   el.innerHTML = `<select id="sortSel" class="mob">${opt("title|1", "Sortare: titlu A-Z")}${opt("user|1", "Sortare: utilizator")}${opt("cat|1", "Sortare: categorie")}${opt("updated|-1", "Sortare: modificate recent")}</select>
-    <div class="lst"><div class="lh"><div data-act="sort" data-k="title">Titlu${arrow("title")}</div><div data-act="sort" data-k="user">Utilizator${arrow("user")}</div><div data-act="sort" data-k="cat">Categorie${arrow("cat")}</div><div></div></div>${rows}</div>
+    <div class="lst"><div class="lh"><div data-act="sort" data-k="cat">Categorie${arrow("cat")}</div><div data-act="sort" data-k="title">Titlu${arrow("title")}</div><div data-act="sort" data-k="user">Utilizator${arrow("user")}</div><div>Parolă</div><div>Tag-uri</div><div></div></div>${rows}</div>
     <div class="st">${items.length} ${items.length === 1 ? "intrare" : "intrări"}</div>`;
 }
 document.addEventListener("click", async ev => {
@@ -550,7 +555,7 @@ document.addEventListener("click", async ev => {
   if (b.tagName === "A") ev.preventDefault();
   const act = b.dataset.act;
   if (act === "chip") { S.cat = b.dataset.v; return renderList(); }
-  if (act === "tag") { S.q = "#" + b.dataset.t; const q = $("#q"); if (q) q.value = S.q; return renderList(); }
+  if (act === "tag") { S.q = b.dataset.t; const q = $("#q"); if (q) q.value = S.q; return renderList(); }
   if (act === "menu") return openMenu();
   if (act === "sort") { const k = b.dataset.k; S.sort = S.sort.k === k ? { k, d: -S.sort.d } : { k, d: k === "updated" ? -1 : 1 }; return renderList(); }
   const card = b.closest("[data-id]"); const e = card && visible().find(x => x.id === card.dataset.id);
