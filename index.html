@@ -14,7 +14,7 @@ body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--tx
 .box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin:12px 0}
 .center{max-width:380px;margin:12vh auto 0}
 h1{font-size:20px;margin:0 0 12px}
-input,textarea{width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;margin:4px 0 10px}
+input,textarea,select{width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;margin:4px 0 10px}
 label{font-size:13px;color:var(--mut)}
 button{padding:10px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
 button.sec{background:var(--bd);color:var(--tx)}
@@ -23,12 +23,19 @@ button.sm{padding:6px 10px;font-size:14px}
 button:disabled{opacity:.6}
 .row{display:flex;gap:8px;align-items:center}
 .row>input{margin:0}
-.bar{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5}
+.bar{position:sticky;top:0;background:var(--bg);padding:10px 0 4px;z-index:5}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:6px 0 8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{padding:6px 12px;border-radius:16px;background:var(--bd);color:var(--tx);font-size:14px;white-space:nowrap}
+.chip.on{background:var(--ac);color:#fff}
+.chip span{opacity:.7;font-size:12px}
 .item{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin:8px 0}
 .item .t{font-weight:600;cursor:pointer}
 .item .u{color:var(--mut);font-size:14px;cursor:pointer}
+.tag{background:var(--bd);color:var(--tx);border-radius:10px;padding:1px 8px;font-size:12px;margin-left:4px}
 .det{margin-top:10px;border-top:1px solid var(--bd);padding-top:10px}
 .det div{margin:6px 0;word-break:break-all}
+.meta{font-size:13px;color:var(--mut)}
 .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .st{font-size:12px;color:var(--mut);text-align:center;margin:8px 0}
 .err{color:var(--dg);font-size:14px;min-height:18px}
@@ -44,15 +51,18 @@ a{color:var(--ac)}
 /* Seif: pagina nu conține nicio parolă și nicio configurare personală.
    Datele stau criptate (AES-256-GCM) în vault.json, într-un repo privat GitHub. */
 
-const ITER = 600000, LOCK_MS = 5 * 60 * 1000, CLIP_MS = 30000;
+const ITER = 600000, LOCK_MS = 5 * 60 * 1000, CLIP_MS = 30000, MAX_HIST = 30;
+const FIELDS = { title: "titlu", url: "adresă", user: "utilizator", pass: "parolă", notes: "note", cat: "categorie" };
 
 let CFG = null; // { repo: "utilizator/repo", token: "github_pat_..." }
 const S = { key: null, salt: null, iter: ITER, entries: [], etag: null, text: null,
-            online: true, open: null, shown: {}, q: "", edit: null };
+            online: true, open: null, shown: {}, q: "", cat: "", hist: null, user: "" };
 const enc = new TextEncoder(), dec = new TextDecoder();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => crypto.getRandomValues(new Uint32Array(4)).join("-");
+const fmt = t => t ? new Date(t).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" }) : "—";
+const isoLocal = t => t ? new Date(t - new Date(t).getTimezoneOffset() * 60000).toISOString().slice(0, 16).replace("T", " ") : "";
 
 /* ---------- criptare ---------- */
 function b64(buf) { const a = new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 8192) s += String.fromCharCode.apply(null, a.subarray(i, i + 8192)); return btoa(s); }
@@ -71,9 +81,20 @@ async function decryptBlob(o) {
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, S.key, unb64(o.data));
   return JSON.parse(dec.decode(pt)).entries;
 }
+function mergeHist(a, b) {
+  const m = new Map();
+  for (const h of [...(a || []), ...(b || [])]) m.set(h.t + "|" + h.by + "|" + (h.f || []).join(","), h);
+  return [...m.values()].sort((x, y) => x.t - y.t).slice(-MAX_HIST);
+}
 function merge(a, b) {
   const m = new Map();
-  for (const e of [...a, ...b]) { const x = m.get(e.id); if (!x || (e.updated || 0) > (x.updated || 0)) m.set(e.id, e); }
+  for (const e of [...a, ...b]) {
+    const x = m.get(e.id);
+    if (!x) { m.set(e.id, e); continue; }
+    const win = (e.updated || 0) > (x.updated || 0) ? e : x;
+    const lose = win === e ? x : e;
+    m.set(e.id, { ...win, history: mergeHist(win.history, lose.history) });
+  }
   return [...m.values()];
 }
 
@@ -150,6 +171,7 @@ async function load() {
 }
 async function init() {
   setManifest();
+  S.user = localStorage.getItem("vault_user") || "";
   try { CFG = JSON.parse(localStorage.getItem("gh_cfg") || "null"); } catch (e) { CFG = null; }
   if (!CFG || !CFG.repo || !CFG.token) return viewConfig();
   await load();
@@ -233,30 +255,53 @@ function viewMain() {
     <input id="q" placeholder="Caută…" autocomplete="off" autofocus>
     <button id="add" title="Adaugă">＋</button>
     <button class="sec" id="sync" title="Sincronizează">⟳</button>
-    <button class="sec" id="lock" title="Blochează">🔒</button></div></div>
-    <div id="list"></div><div class="st" id="st"></div></div>`;
+    <button class="sec" id="lock" title="Blochează">🔒</button></div>
+    <div class="chips" id="chips"></div></div>
+    <div id="list"></div><div class="st" id="st"></div><div class="st" id="ft"></div></div>`;
   $("#q").value = S.q;
   $("#q").oninput = e => { S.q = e.target.value; renderList(); };
   $("#add").onclick = () => openEdit(null);
   $("#sync").onclick = refresh;
   $("#lock").onclick = lock;
-  renderList(); if (S.etag !== null || S.text) refresh(); armLock();
+  renderList(); renderFooter(); refresh(); armLock();
+  if (!S.user) askUser();
+}
+function renderFooter() {
+  const el = $("#ft"); if (!el) return;
+  el.innerHTML = `<a href="#" data-act="user">👤 ${esc(S.user || "setează numele")}</a> · <a href="#" data-act="export">Export CSV</a>`;
+}
+function renderChips() {
+  const el = $("#chips"); if (!el) return;
+  const m = new Map();
+  for (const e of S.entries) if (!e.deleted) { const c = (e.cat || "").trim(); m.set(c, (m.get(c) || 0) + 1); }
+  const names = [...m.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "ro"));
+  if (S.cat === "__none__" ? !m.get("") : (S.cat && !m.has(S.cat))) S.cat = "";
+  if (!names.length) { el.innerHTML = ""; S.cat = ""; return; }
+  const total = [...m.values()].reduce((a, b) => a + b, 0);
+  const chip = (v, label, n) => `<button class="chip${S.cat === v ? " on" : ""}" data-act="chip" data-v="${esc(v)}">${esc(label)} <span>${n}</span></button>`;
+  el.innerHTML = chip("", "Toate", total) + names.map(n => chip(n, n, m.get(n))).join("") + (m.get("") ? chip("__none__", "Fără categorie", m.get("")) : "");
 }
 function renderList() {
   const el = $("#list"); if (!el) return;
+  renderChips();
   const q = S.q.trim().toLowerCase();
   const items = S.entries.filter(e => !e.deleted &&
-    (!q || [e.title, e.user, e.url, e.notes].some(f => (f || "").toLowerCase().includes(q))))
+    (S.cat === "" || (S.cat === "__none__" ? !e.cat : e.cat === S.cat)) &&
+    (!q || [e.title, e.user, e.url, e.notes, e.cat].some(f => (f || "").toLowerCase().includes(q))))
     .sort((a, b) => (a.title || "").localeCompare(b.title || "", "ro"));
   if (!items.length) { el.innerHTML = `<div class="st">${S.entries.some(e => !e.deleted) ? "Niciun rezultat." : "Seiful e gol. Apasă ＋ ca să adaugi prima parolă."}</div>`; return; }
   el.innerHTML = items.map(e => {
     const o = S.open === e.id;
+    const hist = (e.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).join(", "))}`).join("<br>") || "Fără istoric.";
     return `<div class="item" data-id="${e.id}"><div class="t" data-act="toggle">${esc(e.title)}</div>
-    <div class="u" data-act="toggle">${esc(e.user)}</div>` + (o ? `<div class="det">
+    <div class="u" data-act="toggle">${esc(e.user)}${e.cat ? `<span class="tag">${esc(e.cat)}</span>` : ""}</div>` + (o ? `<div class="det">
       ${e.url ? `<div>🌐 <a href="${esc(/^https?:/i.test(e.url) ? e.url : "https://" + e.url)}" target="_blank" rel="noopener">${esc(e.url)}</a></div>` : ""}
       <div>👤 ${esc(e.user)}</div>
       <div>🔑 ${S.shown[e.id] ? esc(e.pass) : "••••••••••"}</div>
       ${e.notes ? `<div style="color:var(--mut);white-space:pre-wrap">${esc(e.notes)}</div>` : ""}
+      <div class="meta">Creat de <b>${esc(e.createdBy || "—")}</b>, ${esc(fmt(e.created))}<br>Modificat de <b>${esc(e.updatedBy || "—")}</b>, ${esc(fmt(e.updated))}</div>
+      <div><a href="#" data-act="hist">${S.hist === e.id ? "Ascunde istoricul" : "Istoric modificări"}</a></div>
+      ${S.hist === e.id ? `<div class="meta">${hist}</div>` : ""}
       <div class="acts"><button class="sm" data-act="cu">Copiază user</button>
       <button class="sm" data-act="cp">Copiază parola</button>
       <button class="sm sec" data-act="show">${S.shown[e.id] ? "Ascunde" : "Arată"}</button>
@@ -266,20 +311,51 @@ function renderList() {
 }
 document.addEventListener("click", async ev => {
   const b = ev.target.closest("[data-act]"); if (!b) return;
+  if (b.tagName === "A") ev.preventDefault();
   const card = b.closest(".item"); const e = card && S.entries.find(x => x.id === card.dataset.id);
   const act = b.dataset.act;
-  if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
+  if (act === "chip") { S.cat = b.dataset.v; renderList(); }
+  else if (act === "user") askUser();
+  else if (act === "export") openExport();
+  else if (!e) return;
+  else if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
   else if (act === "show") { S.shown[e.id] = !S.shown[e.id]; renderList(); }
+  else if (act === "hist") { S.hist = S.hist === e.id ? null : e.id; renderList(); }
   else if (act === "cu") copy(e.user, "User copiat");
   else if (act === "cp") copy(e.pass, "Parolă copiată (se șterge în 30 s)", true);
   else if (act === "edit") openEdit(e);
-  else if (act === "del") { if (confirm(`Ștergi „${e.title}”?`)) { e.deleted = true; e.updated = Date.now(); e.user = e.pass = e.notes = ""; renderList(); save(); } }
+  else if (act === "del") {
+    if (!S.user) return askUser();
+    if (confirm(`Ștergi „${e.title}”?`)) {
+      const now = Date.now();
+      e.deleted = true; e.updated = now; e.updatedBy = S.user;
+      e.history = [...(e.history || []), { t: now, by: S.user, f: ["șters"] }].slice(-MAX_HIST);
+      e.user = e.pass = e.notes = ""; renderList(); save();
+    }
+  }
 });
 async function copy(t, msg, clear) {
   try { await navigator.clipboard.writeText(t || ""); toast(msg); } catch (e) { toast("Nu am putut copia"); return; }
   if (clear) setTimeout(() => navigator.clipboard.writeText(" ").catch(() => {}), CLIP_MS);
 }
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2000); }
+
+/* ---------- nume utilizator (pentru istoric) ---------- */
+function askUser(after) {
+  const o = document.createElement("div"); o.className = "ov";
+  o.innerHTML = `<div class="box"><h1>Cine folosește acest dispozitiv?</h1>
+  <p style="color:var(--mut);font-size:14px">Numele apare în istoric, la „creat de” și „modificat de”.</p>
+  <label>Nume</label><input id="u_n" value="${esc(S.user)}" maxlength="30" autocomplete="off">
+  <div class="row"><button id="u_s">Salvează</button>${S.user ? '<button class="sec" id="u_c">Anulează</button>' : ""}</div></div>`;
+  document.body.appendChild(o);
+  const ok = () => {
+    const n = $("#u_n").value.trim(); if (!n) return $("#u_n").focus();
+    S.user = n; localStorage.setItem("vault_user", n); o.remove(); renderFooter(); if (after) after();
+  };
+  $("#u_s").onclick = ok; $("#u_n").onkeydown = e => { if (e.key === "Enter") ok(); };
+  if ($("#u_c")) $("#u_c").onclick = () => o.remove();
+  $("#u_n").focus();
+}
 
 /* ---------- adăugare / editare ---------- */
 function genPass(n = 20) {
@@ -289,10 +365,13 @@ function genPass(n = 20) {
   return out;
 }
 function openEdit(e) {
-  S.edit = e;
-  const o = document.createElement("div"); o.className = "ov"; o.id = "ov";
+  if (!S.user) return askUser(() => openEdit(e));
+  const cats = [...new Set(S.entries.filter(x => !x.deleted && x.cat).map(x => x.cat))].sort((a, b) => a.localeCompare(b, "ro"));
+  const o = document.createElement("div"); o.className = "ov";
   o.innerHTML = `<div class="box"><h1>${e ? "Editează" : "Adaugă"}</h1>
   <label>Titlu / site</label><input id="f_t" value="${esc(e?.title)}">
+  <label>Categorie</label><input id="f_cat" list="f_cats" value="${esc(e?.cat)}" placeholder="alege sau scrie una nouă" autocomplete="off">
+  <datalist id="f_cats">${cats.map(c => `<option value="${esc(c)}">`).join("")}</datalist>
   <label>Adresă (opțional)</label><input id="f_url" value="${esc(e?.url)}">
   <label>Utilizator</label><input id="f_u" value="${esc(e?.user)}" autocomplete="off">
   <label>Parolă</label><div class="row"><input id="f_p" value="${esc(e?.pass)}" autocomplete="off">
@@ -304,11 +383,55 @@ function openEdit(e) {
   $("#f_c").onclick = () => o.remove();
   $("#f_s").onclick = () => {
     const t = $("#f_t").value.trim(); if (!t) return $("#f_t").focus();
-    const d = { id: e ? e.id : uid(), title: t, url: $("#f_url").value.trim(), user: $("#f_u").value, pass: $("#f_p").value, notes: $("#f_n").value, updated: Date.now() };
-    if (e) Object.assign(e, d); else S.entries.push(d);
+    const d = { title: t, url: $("#f_url").value.trim(), user: $("#f_u").value, pass: $("#f_p").value, notes: $("#f_n").value, cat: $("#f_cat").value.trim() };
+    const now = Date.now();
+    if (e) {
+      const ch = Object.keys(FIELDS).filter(k => (e[k] || "") !== d[k]);
+      if (!ch.length) return o.remove();
+      Object.assign(e, d, { updated: now, updatedBy: S.user,
+        history: [...(e.history || []), { t: now, by: S.user, f: ch.map(k => FIELDS[k]) }].slice(-MAX_HIST) });
+    } else {
+      S.entries.push({ id: uid(), ...d, created: now, createdBy: S.user, updated: now, updatedBy: S.user,
+        history: [{ t: now, by: S.user, f: ["creat"] }] });
+    }
     o.remove(); renderList(); save();
   };
   $("#f_t").focus();
+}
+
+/* ---------- export CSV ---------- */
+function buildCsv(sep) {
+  const head = ["categorie", "titlu", "adresa", "utilizator", "parola", "note", "creat_de", "creat_la", "modificat_de", "modificat_la"];
+  const rows = S.entries.filter(e => !e.deleted)
+    .sort((a, b) => (a.cat || "").localeCompare(b.cat || "", "ro") || (a.title || "").localeCompare(b.title || "", "ro"))
+    .map(e => [e.cat, e.title, e.url, e.user, e.pass, e.notes, e.createdBy, isoLocal(e.created), e.updatedBy, isoLocal(e.updated)]);
+  const cell = v => { const s = String(v ?? ""); return (s.includes(sep) || /["\r\n]/.test(s)) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  return "﻿" + [head, ...rows].map(r => r.map(cell).join(sep)).join("\r\n") + "\r\n";
+}
+function openExport() {
+  const o = document.createElement("div"); o.className = "ov";
+  o.innerHTML = `<div class="box"><h1>Export CSV</h1>
+  <p class="err" style="min-height:0">Fișierul conține toate parolele în clar. Păstrează-l într-un loc sigur și șterge-l după folosire.</p>
+  <label>Separator</label><select id="x_sep"><option value=";">punct și virgulă (Excel în română)</option><option value=",">virgulă (standard)</option></select>
+  <label>Confirmă parola master</label><input id="x_pw" type="password" autocomplete="current-password">
+  <div class="err" id="x_err"></div>
+  <div class="row"><button id="x_go">Descarcă CSV</button><button class="sec" id="x_c">Anulează</button></div></div>`;
+  document.body.appendChild(o);
+  $("#x_c").onclick = () => o.remove();
+  const go = async () => {
+    $("#x_err").textContent = ""; $("#x_go").disabled = true;
+    try {
+      const k = await deriveKey($("#x_pw").value, S.salt, S.iter), keep = S.key;
+      S.key = k; try { await decryptBlob(JSON.parse(S.text)); } finally { S.key = keep; }
+    } catch (e) { $("#x_err").textContent = "Parolă greșită."; $("#x_go").disabled = false; return; }
+    const blob = new Blob([buildCsv($("#x_sep").value)], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = "seif-" + isoLocal(Date.now()).slice(0, 10) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    o.remove(); toast("CSV descărcat");
+  };
+  $("#x_go").onclick = go; $("#x_pw").onkeydown = e => { if (e.key === "Enter") go(); };
+  $("#x_pw").focus();
 }
 
 /* ---------- blocare automată ---------- */
@@ -316,8 +439,8 @@ let lockTimer, hiddenAt = 0;
 function armLock() { clearTimeout(lockTimer); if (S.key) lockTimer = setTimeout(lock, LOCK_MS); }
 ["click", "keydown", "touchstart", "mousemove"].forEach(ev => addEventListener(ev, armLock, { passive: true }));
 function lock() {
-  clearTimeout(lockTimer); S.key = null; S.entries = []; S.open = null; S.shown = {}; S.q = "";
-  document.getElementById("ov")?.remove();
+  clearTimeout(lockTimer); S.key = null; S.entries = []; S.open = null; S.shown = {}; S.q = ""; S.cat = ""; S.hist = null;
+  document.querySelectorAll(".ov").forEach(x => x.remove());
   S.text = localStorage.getItem("vault_cache") || S.text; viewUnlock();
 }
 document.addEventListener("visibilitychange", () => {
