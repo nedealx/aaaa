@@ -15,12 +15,14 @@ body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--tx
 .center{max-width:380px;margin:12vh auto 0}
 h1{font-size:20px;margin:0 0 12px}
 input,textarea,select{width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;margin:4px 0 10px}
+input[type=checkbox]{width:auto;margin:0 8px 0 0}
 label{font-size:13px;color:var(--mut)}
 button{padding:10px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
 button.sec{background:var(--bd);color:var(--tx)}
 button.dg{background:var(--dg)}
 button.sm{padding:6px 10px;font-size:14px}
 button:disabled{opacity:.6}
+.menu button{display:block;width:100%;margin:6px 0;text-align:left}
 .row{display:flex;gap:8px;align-items:center}
 .row>input{margin:0}
 .bar{position:sticky;top:0;background:var(--bg);padding:10px 0 4px;z-index:5}
@@ -33,9 +35,11 @@ button:disabled{opacity:.6}
 .item .t{font-weight:600;cursor:pointer}
 .item .u{color:var(--mut);font-size:14px;cursor:pointer}
 .tag{background:var(--bd);color:var(--tx);border-radius:10px;padding:1px 8px;font-size:12px;margin-left:4px}
+.pill{display:inline-block;background:transparent;color:var(--ac);border:1px solid var(--bd);border-radius:10px;padding:1px 8px;font-size:12px;margin:4px 4px 0 0}
 .det{margin-top:10px;border-top:1px solid var(--bd);padding-top:10px}
 .det div{margin:6px 0;word-break:break-all}
 .meta{font-size:13px;color:var(--mut)}
+.acc label{display:flex;align-items:center;font-size:14px;color:var(--tx);margin:4px 0}
 .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .st{font-size:12px;color:var(--mut);text-align:center;margin:8px 0}
 .err{color:var(--dg);font-size:14px;min-height:18px}
@@ -43,59 +47,230 @@ button:disabled{opacity:.6}
 .ov .box{width:100%;max-width:480px;margin:4vh 0}
 a{color:var(--ac)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111c;color:#fff;padding:8px 16px;border-radius:20px;font-size:14px;z-index:30}
+.key{font:15px ui-monospace,monospace;word-break:break-all;background:var(--bg);border:1px dashed var(--bd);border-radius:8px;padding:12px;margin:10px 0}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script>
-/* Seif: pagina nu conține nicio parolă și nicio configurare personală.
-   Datele stau criptate (AES-256-GCM) în vault.json, într-un repo privat GitHub. */
+/* Seif multi-utilizator. Pagina nu conține nicio parolă sau configurare personală.
+   vault.json (repo privat GitHub): utilizatori (cheie privată criptată cu parola lor),
+   categorii și intrări. Fiecare intrare are cheia ei, împachetată separat pentru fiecare
+   utilizator care are voie s-o vadă. */
 
-const ITER = 600000, LOCK_MS = 5 * 60 * 1000, CLIP_MS = 30000, MAX_HIST = 30;
-const FIELDS = { title: "titlu", url: "adresă", user: "utilizator", pass: "parolă", notes: "note", cat: "categorie" };
+const ITER = 600000, LOCK_MS = 5 * 60 * 1000, CLIP_MS = 30000, MAX_HIST = 30, GENERAL = "general";
+const FIELDS = { title: "titlu", url: "adresă", user: "utilizator", pass: "parolă", notes: "note", cat: "categorie", tags: "tag-uri" };
+const RSA = { name: "RSA-OAEP", hash: "SHA-256" };
 
-let CFG = null; // { repo: "utilizator/repo", token: "github_pat_..." }
-const S = { key: null, salt: null, iter: ITER, entries: [], etag: null, text: null,
-            online: true, open: null, shown: {}, q: "", cat: "", hist: null, user: "" };
+let CFG = null; // { repo, token }
+const S = { raw: null, plain: new Map(), meId: null, priv: null, etag: null, text: null,
+            online: true, open: null, shown: {}, q: "", cat: "", hist: null };
 const enc = new TextEncoder(), dec = new TextDecoder();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const uid = () => crypto.getRandomValues(new Uint32Array(4)).join("-");
+const uid = () => [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, "0")).join("");
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
 const fmt = t => t ? new Date(t).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" }) : "—";
 const isoLocal = t => t ? new Date(t - new Date(t).getTimezoneOffset() * 60000).toISOString().slice(0, 16).replace("T", " ") : "";
 
 /* ---------- criptare ---------- */
 function b64(buf) { const a = new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 8192) s += String.fromCharCode.apply(null, a.subarray(i, i + 8192)); return btoa(s); }
 function unb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
-async function deriveKey(pw, saltB64, iter) {
+async function pwKey(pw, saltB64, iter) {
   const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey({ name: "PBKDF2", salt: unb64(saltB64), iterations: iter, hash: "SHA-256" },
     base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
-async function encryptBlob() {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, S.key, enc.encode(JSON.stringify({ entries: S.entries })));
-  return JSON.stringify({ v: 1, iter: S.iter, salt: S.salt, iv: b64(iv), data: b64(ct) });
+async function aesSeal(key, bytes) { const iv = rnd(12); const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, bytes); return { iv: b64(iv), d: b64(ct) }; }
+async function aesOpen(key, o) { return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, key, unb64(o.d))); }
+async function wrapPw(bytes, pw) { const salt = b64(rnd(16)); return { salt, iter: ITER, ...(await aesSeal(await pwKey(pw, salt, ITER), bytes)) }; }
+async function unwrapPw(w, pw) { return aesOpen(await pwKey(pw, w.salt, w.iter), w); }
+const rawKey = raw => crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+const newDek = () => crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+
+async function newUserKeys(pw) {
+  const kp = await crypto.subtle.generateKey({ ...RSA, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) }, true, ["encrypt", "decrypt"]);
+  const pub = await crypto.subtle.exportKey("jwk", kp.publicKey);
+  const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey));
+  return { pub, pkcs8, w: await wrapPw(pkcs8, pw) };
 }
-async function decryptBlob(o) {
-  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, S.key, unb64(o.data));
-  return JSON.parse(dec.decode(pt)).entries;
+const pubCache = new Map();
+async function pubOf(u) {
+  if (!pubCache.has(u.pub.n)) pubCache.set(u.pub.n, await crypto.subtle.importKey("jwk", u.pub, RSA, false, ["encrypt"]));
+  return pubCache.get(u.pub.n);
 }
-function mergeHist(a, b) {
+async function wrapFor(u, rawDek) { return b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, await pubOf(u), rawDek)); }
+
+/* ---------- structura datelor ---------- */
+const userById = id => S.raw.users.find(u => u.id === id);
+const me = () => S.raw && S.raw.users.find(u => u.id === S.meId && !u.del);
+const isAdmin = () => { const m = me(); return !!m && m.role === "admin"; };
+const admins = () => S.raw.users.filter(u => u.role === "admin" && !u.del);
+const members = () => S.raw.users.filter(u => u.role !== "admin" && !u.del);
+const accessFor = id => [...new Set([id, ...admins().map(a => a.id)])];
+const canEdit = e => isAdmin() || e.d.createdById === S.meId;
+function catList() {
+  const l = S.raw.cats.filter(c => !c.del && c.id !== GENERAL).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+  return [{ id: GENERAL, name: "General" }, ...l];
+}
+const catOf = d => catList().some(c => c.id === d.cat) ? d.cat : GENERAL;
+const catName = id => (catList().find(c => c.id === id) || { name: "General" }).name;
+function visible() {
+  return S.raw.entries.filter(r => !r.del && S.plain.has(r.id)).map(r => { const p = S.plain.get(r.id); return { id: r.id, rec: r, p, d: p.data }; });
+}
+function matches(e, q) {
+  const toks = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const d = e.d, tags = (d.tags || []).map(t => t.toLowerCase());
+  const hay = [d.title, d.user, d.url, d.notes, catName(catOf(d)), ...(d.tags || [])].join("\n").toLowerCase();
+  return toks.every(t => t[0] === "#" ? (t.length === 1 || tags.some(x => x.startsWith(t.slice(1)))) : hay.includes(t));
+}
+function parseRaw(t) {
+  try { const o = JSON.parse(t); if (o && o.v === 2 && Array.isArray(o.users) && Array.isArray(o.entries)) { o.cats = o.cats || []; return o; } } catch (e) {}
+  return null;
+}
+function mergeBy(a, b) {
   const m = new Map();
-  for (const h of [...(a || []), ...(b || [])]) m.set(h.t + "|" + h.by + "|" + (h.f || []).join(","), h);
-  return [...m.values()].sort((x, y) => x.t - y.t).slice(-MAX_HIST);
-}
-function merge(a, b) {
-  const m = new Map();
-  for (const e of [...a, ...b]) {
-    const x = m.get(e.id);
-    if (!x) { m.set(e.id, e); continue; }
-    const win = (e.updated || 0) > (x.updated || 0) ? e : x;
-    const lose = win === e ? x : e;
-    m.set(e.id, { ...win, history: mergeHist(win.history, lose.history) });
-  }
+  for (const x of [...a, ...b]) { const y = m.get(x.id); if (!y || (x.u || 0) > (y.u || 0)) m.set(x.id, x); }
   return [...m.values()];
+}
+const mergeRaw = (a, b) => ({ v: 2, users: mergeBy(a.users, b.users), cats: mergeBy(a.cats, b.cats), entries: mergeBy(a.entries, b.entries) });
+
+async function seal(id, data, dek, ids, now, oldK) {
+  const s = await aesSeal(dek, enc.encode(JSON.stringify(data)));
+  let k = oldK;
+  if (!k) {
+    const raw = await crypto.subtle.exportKey("raw", dek); k = {};
+    for (const x of ids) { const u = userById(x); if (u && !u.del) k[x] = await wrapFor(u, raw); }
+  }
+  return { id, u: now, k, ...s };
+}
+async function openRec(rec) {
+  const w = rec.k && rec.k[S.meId]; if (!w) return null;
+  const raw = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, S.priv, unb64(w));
+  const dek = await crypto.subtle.importKey("raw", raw, "AES-GCM", true, ["encrypt", "decrypt"]);
+  return { u: rec.u, dek, data: JSON.parse(dec.decode(await aesOpen(dek, rec))) };
+}
+async function syncPlain() {
+  const keep = new Map();
+  for (const rec of S.raw.entries) {
+    if (rec.del || !rec.k || !rec.k[S.meId]) continue;
+    const p = S.plain.get(rec.id);
+    if (p && p.u === rec.u) { keep.set(rec.id, p); continue; }
+    try { const o = await openRec(rec); if (o) keep.set(rec.id, o); } catch (e) { console.error("intrare nedecriptabilă", rec.id, e); }
+  }
+  S.plain = keep;
+}
+
+/* ---------- operații ---------- */
+function replaceRec(rec) { const i = S.raw.entries.findIndex(r => r.id === rec.id); if (i >= 0) S.raw.entries[i] = rec; else S.raw.entries.push(rec); }
+const same = (a, b) => JSON.stringify(a ?? "") === JSON.stringify(b ?? "");
+
+async function createVault(name, pw) {
+  const now = Date.now(), k = await newUserKeys(pw), rk = rnd(32);
+  const admin = { id: uid(), name: name.trim(), role: "admin", pub: k.pub, w: k.w, rec: await aesSeal(await rawKey(rk), k.pkcs8), u: now };
+  S.raw = { v: 2, users: [admin], cats: [{ id: GENERAL, name: "General", u: now }], entries: [] };
+  S.meId = admin.id; S.plain = new Map();
+  S.priv = await crypto.subtle.importKey("pkcs8", k.pkcs8, RSA, false, ["decrypt"]);
+  await save();
+  return [...rk].map(b => b.toString(16).padStart(2, "0")).join("").replace(/(.{8})(?=.)/g, "$1-");
+}
+async function doLogin(name, pw) {
+  const u = S.raw.users.find(x => !x.del && x.name.toLowerCase() === name.trim().toLowerCase());
+  if (!u) throw new Error("login");
+  const pkcs8 = await unwrapPw(u.w, pw);
+  S.priv = await crypto.subtle.importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
+  S.meId = u.id; S.plain = new Map();
+  await syncPlain();
+}
+async function recoverAdmin(hex, nw) {
+  const h = hex.replace(/[^0-9a-f]/gi, "");
+  if (h.length !== 64) throw new Error("Cheia de recuperare are 64 de caractere (cifre și litere a-f).");
+  const rk = Uint8Array.from(h.match(/../g).map(x => parseInt(x, 16)));
+  const a = admins()[0]; if (!a || !a.rec) throw new Error("Nu există cheie de recuperare.");
+  let pkcs8; try { pkcs8 = await aesOpen(await rawKey(rk), a.rec); } catch (e) { throw new Error("Cheie de recuperare greșită."); }
+  a.w = await wrapPw(pkcs8, nw); a.u = Date.now();
+  S.priv = await crypto.subtle.importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
+  S.meId = a.id; S.plain = new Map(); await syncPlain(); await save();
+}
+async function changePw(old, nw) {
+  const m = me(); let pk;
+  try { pk = await unwrapPw(m.w, old); } catch (e) { throw new Error("Parola actuală e greșită."); }
+  m.w = await wrapPw(pk, nw); m.u = Date.now(); await save();
+}
+async function saveEntry(ex, f) {
+  const now = Date.now(), m = me();
+  if (ex) {
+    const d = ex.d, old = { ...d, cat: catOf(d), tags: d.tags || [] };
+    const ch = Object.keys(FIELDS).filter(k => !same(old[k], f[k]));
+    if (!ch.length) return false;
+    const nd = { ...d, ...f, updated: now, updatedBy: m.name, history: [...(d.history || []), { t: now, by: m.name, f: ch.map(k => FIELDS[k]) }].slice(-MAX_HIST) };
+    replaceRec(await seal(ex.id, nd, ex.p.dek, null, now, ex.rec.k));
+    S.plain.set(ex.id, { u: now, dek: ex.p.dek, data: nd });
+  } else {
+    const dek = await newDek(), id = uid();
+    const nd = { ...f, created: now, createdBy: m.name, createdById: m.id, updated: now, updatedBy: m.name, history: [{ t: now, by: m.name, f: ["creat"] }] };
+    replaceRec(await seal(id, nd, dek, accessFor(m.id), now));
+    S.plain.set(id, { u: now, dek, data: nd });
+  }
+  await save(); return true;
+}
+async function delEntry(e) {
+  const now = Date.now();
+  replaceRec({ id: e.id, u: now, del: true }); S.plain.delete(e.id); await save();
+}
+async function applyAccess(e, ids) {
+  const now = Date.now(), m = me(), dek = await newDek();
+  const all = [...new Set([...ids, ...admins().map(a => a.id)])];
+  const nd = { ...e.d, updated: now, updatedBy: m.name, history: [...(e.d.history || []), { t: now, by: m.name, f: ["acces"] }].slice(-MAX_HIST) };
+  replaceRec(await seal(e.id, nd, dek, all, now));
+  S.plain.set(e.id, { u: now, dek, data: nd }); await save();
+}
+async function addUser(name, pw) {
+  name = name.trim();
+  if (!name) throw new Error("Introdu un nume.");
+  if (pw.length < 8) throw new Error("Parola inițială: minim 8 caractere.");
+  if (S.raw.users.some(u => !u.del && u.name.toLowerCase() === name.toLowerCase())) throw new Error("Există deja un utilizator cu acest nume.");
+  const k = await newUserKeys(pw);
+  S.raw.users.push({ id: uid(), name, role: "member", pub: k.pub, w: k.w, u: Date.now() });
+  await save();
+}
+async function resetUser(id, pw) {
+  if (pw.length < 8) throw new Error("Minim 8 caractere.");
+  const u = userById(id), now = Date.now(), k = await newUserKeys(pw);
+  u.pub = k.pub; u.w = k.w; u.u = now;
+  for (const rec of S.raw.entries) {
+    if (rec.del || !rec.k || !rec.k[id]) continue;
+    const p = S.plain.get(rec.id); if (!p) continue;
+    rec.k = { ...rec.k, [id]: await wrapFor(u, await crypto.subtle.exportKey("raw", p.dek)) }; rec.u = now; p.u = now;
+  }
+  await save();
+}
+async function removeUser(id) {
+  const u = userById(id), now = Date.now(); u.del = true; u.u = now;
+  for (let i = 0; i < S.raw.entries.length; i++) {
+    const rec = S.raw.entries[i]; if (rec.del || !rec.k || !rec.k[id]) continue;
+    const p = S.plain.get(rec.id); if (!p) continue;
+    const dek = await newDek();
+    S.raw.entries[i] = await seal(rec.id, p.data, dek, Object.keys(rec.k).filter(x => x !== id), now);
+    S.plain.set(rec.id, { u: now, dek, data: p.data });
+  }
+  await save();
+}
+async function addCat(name) {
+  name = name.trim();
+  if (!name) throw new Error("Introdu un nume.");
+  if (catList().some(c => c.name.toLowerCase() === name.toLowerCase())) throw new Error("Categoria există deja.");
+  S.raw.cats.push({ id: uid(), name, u: Date.now() }); await save();
+}
+async function renCat(id, name) {
+  name = name.trim();
+  if (!name || id === GENERAL) throw new Error("Nume invalid.");
+  if (catList().some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) throw new Error("Categoria există deja.");
+  const c = S.raw.cats.find(x => x.id === id); c.name = name; c.u = Date.now(); await save();
+}
+async function delCat(id) {
+  if (id === GENERAL) return;
+  const c = S.raw.cats.find(x => x.id === id); c.del = true; c.u = Date.now(); await save(); // intrările rămân și trec automat în General
 }
 
 /* ---------- GitHub (Contents API) ---------- */
@@ -107,347 +282,443 @@ async function remoteGet() {
   if (r.status === 404) return null;
   if (!r.ok) throw ghErr(r);
   const j = await r.json();
-  return { sha: j.sha, text: atob(String(j.content).replace(/\s/g, "")) };
+  return { sha: j.sha, text: dec.decode(unb64(String(j.content).replace(/\s/g, ""))) };
 }
 async function remotePut(text, sha) {
-  const body = { message: "update", content: btoa(text) };
+  const body = { message: "update", content: b64(enc.encode(text)) };
   if (sha) body.sha = sha;
   const r = await fetch(apiUrl(), { method: "PUT", headers: { ...hdr(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (r.status === 409 || r.status === 422) return { conflict: true };
   if (!r.ok) throw ghErr(r);
   return { sha: (await r.json()).content.sha };
 }
-function netStatus(e) {
-  if (e && (e.code === 401 || e.code === 403)) return "Token respins de GitHub (expirat sau fără drept de scriere)";
-  return null;
+const netStatus = e => (e && (e.code === 401 || e.code === 403)) ? "Token respins de GitHub (expirat sau fără drept de scriere)" : null;
+async function checkCfg(repo, token) {
+  repo = repo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "").replace(/\/$/, ""); token = token.trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) throw new Error("Completează repo-ul (utilizator/repo) și token-ul.");
+  let r; try { r = await fetch("https://api.github.com/repos/" + repo, { headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json" }, cache: "no-store" }); }
+  catch (e) { throw new Error("Eroare de rețea."); }
+  if (r.status === 401) throw new Error("Token invalid sau expirat.");
+  if (r.status === 404) throw new Error("Repo-ul nu e găsit sau token-ul nu are acces la el.");
+  if (!r.ok) throw new Error("GitHub a răspuns " + r.status);
+  CFG = { repo, token }; localStorage.setItem("gh_cfg", JSON.stringify(CFG));
 }
 
 /* ---------- salvare / sincronizare ---------- */
+const serialize = () => JSON.stringify(S.raw);
+function cacheRaw() { S.text = serialize(); localStorage.setItem("vault2_cache", S.text); }
 function status(t) { const e = $("#st"); if (e) e.textContent = t; }
 async function save() {
-  S.text = await encryptBlob();
-  localStorage.setItem("vault_cache", S.text);
-  localStorage.setItem("vault_dirty", "1");
-  status("Se salvează…");
+  cacheRaw(); localStorage.setItem("vault2_dirty", "1"); status("Se salvează…");
   try {
     for (let i = 0; i < 4; i++) {
       const r = await remotePut(S.text, S.etag);
-      if (!r.conflict) { S.etag = r.sha; localStorage.removeItem("vault_dirty"); S.online = true; status("Sincronizat ✓"); return; }
+      if (!r.conflict) { S.etag = r.sha; localStorage.removeItem("vault2_dirty"); S.online = true; status("Sincronizat ✓"); return; }
       const m = await remoteGet(); S.etag = m ? m.sha : null;
-      if (m) S.entries = merge(S.entries, await decryptBlob(JSON.parse(m.text)));
-      S.text = await encryptBlob(); localStorage.setItem("vault_cache", S.text); renderList();
+      const rr = m && parseRaw(m.text);
+      if (rr) { S.raw = mergeRaw(S.raw, rr); await syncPlain(); }
+      cacheRaw(); renderList();
     }
     status("Conflict nerezolvat, încearcă din nou");
   } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline – salvat local, se sincronizează mai târziu"); }
 }
 async function refresh() {
-  if (!S.key) return;
+  if (!S.priv) return;
   try {
     const m = await remoteGet();
-    if (m && m.sha !== S.etag) {
-      S.entries = merge(S.entries, await decryptBlob(JSON.parse(m.text)));
-      S.etag = m.sha; S.text = await encryptBlob(); localStorage.setItem("vault_cache", S.text); renderList();
-    }
+    if (m && m.sha !== S.etag) { const r = parseRaw(m.text); if (r) { S.raw = mergeRaw(S.raw, r); S.etag = m.sha; cacheRaw(); } }
     S.online = true;
-    if (localStorage.getItem("vault_dirty")) await save(); else status("Sincronizat ✓");
-  } catch (e) { S.online = false; status(netStatus(e) || "Offline"); }
+    if (!me()) return logout("Contul tău a fost eliminat sau schimbat.");
+    await syncPlain(); renderList();
+    if (localStorage.getItem("vault2_dirty")) await save(); else status("Sincronizat ✓");
+  } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline"); }
 }
 
 /* ---------- pornire ---------- */
 async function load() {
-  S.text = null; S.etag = null;
+  S.raw = null; S.etag = null; S.text = null;
+  let remote = null, oldFmt = false;
   try {
     const m = await remoteGet();
-    if (m) { S.etag = m.sha; S.text = m.text; }
+    if (m) { S.etag = m.sha; remote = parseRaw(m.text); oldFmt = !remote; }
     S.online = true;
   } catch (e) {
     console.error(e);
-    if (e.code === 401) return viewConfig("Token invalid sau expirat. Introdu unul nou.");
+    if (e.code === 401) return viewActivate("Token invalid sau expirat. Cere un cod nou de activare de la admin.");
     S.online = false;
   }
-  if (!S.text) S.text = localStorage.getItem("vault_cache");
-  if (!S.text) return S.online ? viewSetup() : viewMsg("Nu pot contacta GitHub și nu există copie locală.");
-  viewUnlock();
+  const cache = parseRaw(localStorage.getItem("vault2_cache")), dirty = !!localStorage.getItem("vault2_dirty");
+  if (remote) S.raw = (cache && dirty) ? mergeRaw(remote, cache) : remote;
+  else if (!S.online) S.raw = cache;
+  if (!S.raw) return S.online ? viewSetup(oldFmt) : viewMsg("Nu pot contacta GitHub și nu există copie locală.");
+  cacheRaw(); viewLogin();
 }
 async function init() {
   setManifest();
-  S.user = localStorage.getItem("vault_user") || "";
   try { CFG = JSON.parse(localStorage.getItem("gh_cfg") || "null"); } catch (e) { CFG = null; }
-  if (!CFG || !CFG.repo || !CFG.token) return viewConfig();
+  if (!CFG || !CFG.repo || !CFG.token) return viewActivate();
   await load();
 }
 function setManifest() {
   const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#1f2937"/><rect x="136" y="236" width="240" height="180" rx="24" fill="#fff"/><path d="M186 236v-50a70 70 0 0 1 140 0v50" fill="none" stroke="#fff" stroke-width="32"/><circle cx="256" cy="320" r="24" fill="#1f2937"/></svg>');
-  const man = { name: "Seif", short_name: "Seif", start_url: location.pathname, display: "standalone",
-    background_color: "#1f2937", theme_color: "#1f2937",
+  const man = { name: "Seif", short_name: "Seif", start_url: location.pathname, display: "standalone", background_color: "#1f2937", theme_color: "#1f2937",
     icons: [{ src: icon, sizes: "512x512", type: "image/svg+xml", purpose: "any" }] };
   const l = document.createElement("link"); l.rel = "manifest";
   l.href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(man));
   document.head.appendChild(l);
 }
 
-/* ---------- ecrane ---------- */
+/* ---------- ecrane de început ---------- */
 const app = () => $("#app");
-function viewMsg(t) { app().innerHTML = `<div class="center box"><h1>Seif</h1><p>${esc(t)}</p><button id="cfg" class="sec">Schimbă repo / token</button></div>`; $("#cfg").onclick = () => viewConfig(); }
+function viewMsg(t) { app().innerHTML = `<div class="center box"><h1>Seif</h1><p>${esc(t)}</p></div>`; }
+function viewActivate(msg) {
+  app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
+  <p style="color:var(--mut);font-size:14px">Dispozitiv nou: lipește codul de activare primit de la admin.</p>
+  <label>Cod de activare</label><textarea id="a_c" rows="3" autocomplete="off" spellcheck="false"></textarea>
+  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Continuă</button>
+  <p class="st"><a href="#" id="man">Configurare manuală (admin)</a></p></div>`;
+  $("#man").onclick = e => { e.preventDefault(); viewConfig(); };
+  $("#go").onclick = async () => {
+    $("#go").disabled = true; $("#err").textContent = "";
+    try {
+      let o; try { o = JSON.parse(atob($("#a_c").value.trim())); } catch (e) { throw new Error("Cod de activare invalid."); }
+      await checkCfg(String(o.r || ""), String(o.t || "")); await load();
+    } catch (e) { $("#err").textContent = e.message; $("#go").disabled = false; }
+  };
+}
 function viewConfig(msg) {
   const old = CFG || {};
   app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
-  <p style="color:var(--mut);font-size:14px">Conectează seiful la repo-ul privat de date de pe GitHub.</p>
+  <p style="color:var(--mut);font-size:14px">Configurare manuală: repo-ul privat de date de pe GitHub.</p>
   <label>Repo de date (utilizator/repo)</label>
   <input id="c_repo" value="${esc(old.repo)}" placeholder="numele-tau/seif-data" autocapitalize="off" autocomplete="off" spellcheck="false">
   <label>Token GitHub (Contents: Read and write)</label>
   <input id="c_tok" type="password" autocomplete="off" placeholder="github_pat_...">
-  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Continuă</button></div>`;
+  <div class="err" id="err">${esc(msg || "")}</div><div class="row"><button id="go">Continuă</button><button class="sec" id="bk">Înapoi</button></div></div>`;
+  $("#bk").onclick = () => viewActivate();
   $("#go").onclick = async () => {
-    const repo = $("#c_repo").value.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "").replace(/\/$/, "");
-    const token = $("#c_tok").value.trim();
-    if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) return $("#err").textContent = "Completează repo-ul (utilizator/repo) și token-ul.";
     $("#go").disabled = true; $("#err").textContent = "";
-    try {
-      const r = await fetch("https://api.github.com/repos/" + repo, { headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json" }, cache: "no-store" });
-      if (r.status === 401) throw new Error("Token invalid sau expirat.");
-      if (r.status === 404) throw new Error("Repo-ul nu e găsit sau token-ul nu are acces la el.");
-      if (!r.ok) throw new Error("GitHub a răspuns " + r.status);
-      CFG = { repo, token }; localStorage.setItem("gh_cfg", JSON.stringify(CFG));
-      await load();
-    } catch (e) { $("#err").textContent = e.message || "Eroare de rețea."; $("#go").disabled = false; }
+    try { await checkCfg($("#c_repo").value, $("#c_tok").value); await load(); }
+    catch (e) { $("#err").textContent = e.message; $("#go").disabled = false; }
   };
 }
-function viewSetup() {
+function viewSetup(oldFmt) {
   app().innerHTML = `<div class="center box"><h1>Creează seiful</h1>
-  <p style="color:var(--mut);font-size:14px">Alege parola master (minim 10 caractere). Dacă o uiți, parolele nu se pot recupera.</p>
-  <label>Parola master</label><input id="p1" type="password" autocomplete="new-password">
+  <p style="color:var(--mut);font-size:14px">Creezi contul de <b>admin</b>. Ceilalți utilizatori îi adaugi tu după aceea.</p>
+  ${oldFmt ? '<p class="err" style="min-height:0">În repo există un seif în format vechi. Dacă continui, va fi înlocuit. Exportă-ți parolele reale înainte, cu versiunea veche.</p>' : ""}
+  <label>Nume admin</label><input id="s_n" autocomplete="username" maxlength="30">
+  <label>Parolă (minim 10 caractere)</label><input id="p1" type="password" autocomplete="new-password">
   <label>Repetă parola</label><input id="p2" type="password" autocomplete="new-password">
   <div class="err" id="err"></div><button id="go">Creează</button></div>`;
   $("#go").onclick = async () => {
-    const a = $("#p1").value, b = $("#p2").value;
-    if (a.length < 10) return $("#err").textContent = "Minim 10 caractere.";
+    const n = $("#s_n").value.trim(), a = $("#p1").value, b = $("#p2").value;
+    if (!n) return $("#err").textContent = "Introdu un nume.";
+    if (a.length < 10) return $("#err").textContent = "Parola: minim 10 caractere.";
     if (a !== b) return $("#err").textContent = "Parolele nu coincid.";
+    if (oldFmt && !confirm("Seiful vechi din repo va fi înlocuit. Continui?")) return;
     $("#go").disabled = true; $("#go").textContent = "Se creează…";
-    S.salt = b64(crypto.getRandomValues(new Uint8Array(16))); S.iter = ITER;
-    S.key = await deriveKey(a, S.salt, S.iter); S.entries = [];
-    await save(); viewMain();
+    try { const hex = await createVault(n, a); localStorage.setItem("vault_last", n); viewRecovery(hex); }
+    catch (e) { console.error(e); $("#err").textContent = "Eroare la creare."; $("#go").disabled = false; $("#go").textContent = "Creează"; }
   };
 }
-function viewUnlock() {
+function viewRecovery(hex) {
+  app().innerHTML = `<div class="center box"><h1>Cheie de recuperare</h1>
+  <p style="font-size:14px">Dacă uiți parola de admin, doar această cheie îți redă accesul. <b>Notează-o pe hârtie</b> și ține-o într-un loc sigur, în afara seifului. Nu va mai fi afișată.</p>
+  <div class="key">${esc(hex)}</div>
+  <button id="go">Am notat-o, continuă</button></div>`;
+  $("#go").onclick = () => { viewMain(); };
+}
+function viewLogin(msg) {
   app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
-  <label>Parola master</label><input id="pw" type="password" autocomplete="current-password" autofocus>
-  <div class="err" id="err"></div><button id="go">Deblochează</button>
+  <label>Nume</label><input id="l_n" value="${esc(localStorage.getItem("vault_last") || "")}" autocomplete="username" autocapitalize="off">
+  <label>Parolă</label><input id="l_p" type="password" autocomplete="current-password">
+  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Autentificare</button>
   <p class="st">${S.online ? "" : "Offline – se folosește copia locală"}</p>
-  <p class="st"><a href="#" id="out">Schimbă repo / token</a></p></div>`;
+  <p class="st"><a href="#" id="rec">Recuperare admin</a> · <a href="#" id="act">Dispozitiv nou</a></p></div>`;
   const go = async () => {
     $("#err").textContent = ""; $("#go").disabled = true;
     try {
-      const o = JSON.parse(S.text); S.salt = o.salt; S.iter = o.iter;
-      S.key = await deriveKey($("#pw").value, o.salt, o.iter);
-      S.entries = await decryptBlob(o);
-      const c = localStorage.getItem("vault_cache");
-      if (c && c !== S.text) { try { S.entries = merge(S.entries, await decryptBlob(JSON.parse(c))); } catch (e) {} }
-      viewMain();
-      if (localStorage.getItem("vault_dirty")) save();
-    } catch (e) { S.key = null; $("#err").textContent = "Parolă greșită."; $("#go").disabled = false; }
+      await doLogin($("#l_n").value, $("#l_p").value);
+      localStorage.setItem("vault_last", me().name); viewMain();
+    } catch (e) { S.priv = null; S.meId = null; $("#err").textContent = "Nume sau parolă greșită."; $("#go").disabled = false; }
   };
-  $("#go").onclick = go; $("#pw").onkeydown = e => { if (e.key === "Enter") go(); };
-  $("#out").onclick = e => { e.preventDefault(); viewConfig(); };
+  $("#go").onclick = go; $("#l_p").onkeydown = e => { if (e.key === "Enter") go(); };
+  $("#rec").onclick = e => { e.preventDefault(); openRecover(); };
+  $("#act").onclick = e => { e.preventDefault(); viewActivate(); };
+  ($("#l_n").value ? $("#l_p") : $("#l_n")).focus();
 }
+function logout(msg) {
+  clearTimeout(lockTimer); S.priv = null; S.meId = null; S.plain = new Map(); S.open = null; S.shown = {}; S.q = ""; S.cat = ""; S.hist = null;
+  document.querySelectorAll(".ov").forEach(x => x.remove());
+  viewLogin(msg);
+}
+
+/* ---------- ecranul principal ---------- */
 function viewMain() {
   app().innerHTML = `<div class="wrap"><div class="bar"><div class="row">
-    <input id="q" placeholder="Caută…" autocomplete="off" autofocus>
+    <input id="q" placeholder="Caută… (#tag pentru tag-uri)" autocomplete="off">
     <button id="add" title="Adaugă">＋</button>
     <button class="sec" id="sync" title="Sincronizează">⟳</button>
-    <button class="sec" id="lock" title="Blochează">🔒</button></div>
+    <button class="sec" data-act="menu" title="Meniu">☰</button>
+    <button class="sec" id="lock" title="Deconectare">🔒</button></div>
     <div class="chips" id="chips"></div></div>
-    <div id="list"></div><div class="st" id="st"></div><div class="st" id="ft"></div></div>`;
+    <div id="list"></div><div class="st" id="st"></div>
+    <div class="st">👤 ${esc(me().name)} · ${isAdmin() ? "admin" : "membru"}</div></div>`;
   $("#q").value = S.q;
   $("#q").oninput = e => { S.q = e.target.value; renderList(); };
   $("#add").onclick = () => openEdit(null);
   $("#sync").onclick = refresh;
-  $("#lock").onclick = lock;
-  renderList(); renderFooter(); refresh(); armLock();
-  if (!S.user) askUser();
-}
-function renderFooter() {
-  const el = $("#ft"); if (!el) return;
-  el.innerHTML = `<a href="#" data-act="user">👤 ${esc(S.user || "setează numele")}</a> · <a href="#" data-act="export">Export CSV</a>`;
+  $("#lock").onclick = () => logout();
+  renderList(); refresh(); armLock();
 }
 function renderChips() {
   const el = $("#chips"); if (!el) return;
-  const m = new Map();
-  for (const e of S.entries) if (!e.deleted) { const c = (e.cat || "").trim(); m.set(c, (m.get(c) || 0) + 1); }
-  const names = [...m.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "ro"));
-  if (S.cat === "__none__" ? !m.get("") : (S.cat && !m.has(S.cat))) S.cat = "";
-  if (!names.length) { el.innerHTML = ""; S.cat = ""; return; }
-  const total = [...m.values()].reduce((a, b) => a + b, 0);
+  const ents = visible(), m = new Map();
+  for (const e of ents) { const c = catOf(e.d); m.set(c, (m.get(c) || 0) + 1); }
+  const list = catList().filter(c => m.has(c.id));
+  if (S.cat && !m.has(S.cat)) S.cat = "";
+  if (list.length < 2) { el.innerHTML = ""; if (list.length) S.cat = ""; return; }
   const chip = (v, label, n) => `<button class="chip${S.cat === v ? " on" : ""}" data-act="chip" data-v="${esc(v)}">${esc(label)} <span>${n}</span></button>`;
-  el.innerHTML = chip("", "Toate", total) + names.map(n => chip(n, n, m.get(n))).join("") + (m.get("") ? chip("__none__", "Fără categorie", m.get("")) : "");
+  el.innerHTML = chip("", "Toate", ents.length) + list.map(c => chip(c.id, c.name, m.get(c.id))).join("");
 }
 function renderList() {
   const el = $("#list"); if (!el) return;
   renderChips();
-  const q = S.q.trim().toLowerCase();
-  const items = S.entries.filter(e => !e.deleted &&
-    (S.cat === "" || (S.cat === "__none__" ? !e.cat : e.cat === S.cat)) &&
-    (!q || [e.title, e.user, e.url, e.notes, e.cat].some(f => (f || "").toLowerCase().includes(q))))
-    .sort((a, b) => (a.title || "").localeCompare(b.title || "", "ro"));
-  if (!items.length) { el.innerHTML = `<div class="st">${S.entries.some(e => !e.deleted) ? "Niciun rezultat." : "Seiful e gol. Apasă ＋ ca să adaugi prima parolă."}</div>`; return; }
+  const all = visible();
+  const items = all.filter(e => (!S.cat || catOf(e.d) === S.cat) && matches(e, S.q))
+    .sort((a, b) => (a.d.title || "").localeCompare(b.d.title || "", "ro"));
+  if (!items.length) { el.innerHTML = `<div class="st">${all.length ? "Niciun rezultat." : "Nu ai nicio parolă vizibilă. Apasă ＋ ca să adaugi prima."}</div>`; return; }
+  const mems = members();
   el.innerHTML = items.map(e => {
-    const o = S.open === e.id;
-    const hist = (e.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).join(", "))}`).join("<br>") || "Fără istoric.";
-    return `<div class="item" data-id="${e.id}"><div class="t" data-act="toggle">${esc(e.title)}</div>
-    <div class="u" data-act="toggle">${esc(e.user)}${e.cat ? `<span class="tag">${esc(e.cat)}</span>` : ""}</div>` + (o ? `<div class="det">
-      ${e.url ? `<div>🌐 <a href="${esc(/^https?:/i.test(e.url) ? e.url : "https://" + e.url)}" target="_blank" rel="noopener">${esc(e.url)}</a></div>` : ""}
-      <div>👤 ${esc(e.user)}</div>
-      <div>🔑 ${S.shown[e.id] ? esc(e.pass) : "••••••••••"}</div>
-      ${e.notes ? `<div style="color:var(--mut);white-space:pre-wrap">${esc(e.notes)}</div>` : ""}
-      <div class="meta">Creat de <b>${esc(e.createdBy || "—")}</b>, ${esc(fmt(e.created))}<br>Modificat de <b>${esc(e.updatedBy || "—")}</b>, ${esc(fmt(e.updated))}</div>
+    const d = e.d, o = S.open === e.id, tags = d.tags || [];
+    const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).join(", "))}`).join("<br>") || "Fără istoric.";
+    const cn = catName(catOf(d));
+    return `<div class="item" data-id="${e.id}"><div class="t" data-act="toggle">${esc(d.title)}</div>
+    <div class="u" data-act="toggle">${esc(d.user)}<span class="tag">${esc(cn)}</span></div>
+    ${tags.length ? `<div>${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}` + (o ? `<div class="det">
+      ${d.url ? `<div>🌐 <a href="${esc(/^https?:/i.test(d.url) ? d.url : "https://" + d.url)}" target="_blank" rel="noopener">${esc(d.url)}</a></div>` : ""}
+      <div>👤 ${esc(d.user)}</div>
+      <div>🔑 ${S.shown[e.id] ? esc(d.pass) : "••••••••••"}</div>
+      ${d.notes ? `<div style="color:var(--mut);white-space:pre-wrap">${esc(d.notes)}</div>` : ""}
+      <div class="meta">Creat de <b>${esc(d.createdBy || "—")}</b>, ${esc(fmt(d.created))}<br>Modificat de <b>${esc(d.updatedBy || "—")}</b>, ${esc(fmt(d.updated))}</div>
       <div><a href="#" data-act="hist">${S.hist === e.id ? "Ascunde istoricul" : "Istoric modificări"}</a></div>
       ${S.hist === e.id ? `<div class="meta">${hist}</div>` : ""}
+      ${isAdmin() ? `<div class="acc"><div class="meta"><b>Vizibil pentru:</b></div>
+        ${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}>${esc(u.name)}</label>`).join("") || '<div class="meta">Niciun membru încă.</div>'}
+        ${mems.length ? '<button class="sm sec" data-act="acc">Aplică accesul</button>' : ""}</div>` : ""}
       <div class="acts"><button class="sm" data-act="cu">Copiază user</button>
       <button class="sm" data-act="cp">Copiază parola</button>
       <button class="sm sec" data-act="show">${S.shown[e.id] ? "Ascunde" : "Arată"}</button>
-      <button class="sm sec" data-act="edit">Editează</button>
-      <button class="sm dg" data-act="del">Șterge</button></div></div>` : "") + `</div>`;
+      ${canEdit(e) ? `<button class="sm sec" data-act="edit">Editează</button><button class="sm dg" data-act="del">Șterge</button>` : ""}</div></div>` : "") + `</div>`;
   }).join("");
 }
 document.addEventListener("click", async ev => {
   const b = ev.target.closest("[data-act]"); if (!b) return;
   if (b.tagName === "A") ev.preventDefault();
-  const card = b.closest(".item"); const e = card && S.entries.find(x => x.id === card.dataset.id);
   const act = b.dataset.act;
-  if (act === "chip") { S.cat = b.dataset.v; renderList(); }
-  else if (act === "user") askUser();
-  else if (act === "export") openExport();
-  else if (!e) return;
-  else if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
+  if (act === "chip") { S.cat = b.dataset.v; return renderList(); }
+  if (act === "tag") { S.q = "#" + b.dataset.t; const q = $("#q"); if (q) q.value = S.q; return renderList(); }
+  if (act === "menu") return openMenu();
+  const card = b.closest(".item"); const e = card && visible().find(x => x.id === card.dataset.id);
+  if (!e) return;
+  if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
   else if (act === "show") { S.shown[e.id] = !S.shown[e.id]; renderList(); }
   else if (act === "hist") { S.hist = S.hist === e.id ? null : e.id; renderList(); }
-  else if (act === "cu") copy(e.user, "User copiat");
-  else if (act === "cp") copy(e.pass, "Parolă copiată (se șterge în 30 s)", true);
-  else if (act === "edit") openEdit(e);
-  else if (act === "del") {
-    if (!S.user) return askUser();
-    if (confirm(`Ștergi „${e.title}”?`)) {
-      const now = Date.now();
-      e.deleted = true; e.updated = now; e.updatedBy = S.user;
-      e.history = [...(e.history || []), { t: now, by: S.user, f: ["șters"] }].slice(-MAX_HIST);
-      e.user = e.pass = e.notes = ""; renderList(); save();
-    }
+  else if (act === "cu") copy(e.d.user, "User copiat");
+  else if (act === "cp") copy(e.d.pass, "Parolă copiată (se șterge în 30 s)", true);
+  else if (act === "edit" && canEdit(e)) openEdit(e);
+  else if (act === "del" && canEdit(e)) { if (confirm(`Ștergi „${e.d.title}”?`)) { await delEntry(e); renderList(); } }
+  else if (act === "acc" && isAdmin()) {
+    const ids = [...card.querySelectorAll("input[data-uid]:checked")].map(i => i.dataset.uid);
+    b.disabled = true; try { await applyAccess(e, ids); toast("Acces actualizat"); } catch (er) { console.error(er); toast("Eroare"); }
+    renderList();
   }
 });
 async function copy(t, msg, clear) {
   try { await navigator.clipboard.writeText(t || ""); toast(msg); } catch (e) { toast("Nu am putut copia"); return; }
   if (clear) setTimeout(() => navigator.clipboard.writeText(" ").catch(() => {}), CLIP_MS);
 }
-function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2000); }
-
-/* ---------- nume utilizator (pentru istoric) ---------- */
-function askUser(after) {
-  const o = document.createElement("div"); o.className = "ov";
-  o.innerHTML = `<div class="box"><h1>Cine folosește acest dispozitiv?</h1>
-  <p style="color:var(--mut);font-size:14px">Numele apare în istoric, la „creat de” și „modificat de”.</p>
-  <label>Nume</label><input id="u_n" value="${esc(S.user)}" maxlength="30" autocomplete="off">
-  <div class="row"><button id="u_s">Salvează</button>${S.user ? '<button class="sec" id="u_c">Anulează</button>' : ""}</div></div>`;
-  document.body.appendChild(o);
-  const ok = () => {
-    const n = $("#u_n").value.trim(); if (!n) return $("#u_n").focus();
-    S.user = n; localStorage.setItem("vault_user", n); o.remove(); renderFooter(); if (after) after();
-  };
-  $("#u_s").onclick = ok; $("#u_n").onkeydown = e => { if (e.key === "Enter") ok(); };
-  if ($("#u_c")) $("#u_c").onclick = () => o.remove();
-  $("#u_n").focus();
-}
-
-/* ---------- adăugare / editare ---------- */
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2200); }
+function modal(html) { const o = document.createElement("div"); o.className = "ov"; o.innerHTML = `<div class="box">${html}</div>`; document.body.appendChild(o); return o; }
 function genPass(n = 20) {
   const cs = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+";
   const lim = 256 - (256 % cs.length); let out = "";
   while (out.length < n) for (const v of crypto.getRandomValues(new Uint8Array(32))) { if (v < lim && out.length < n) out += cs[v % cs.length]; }
   return out;
 }
+const parseTags = s => { const seen = new Set(), out = []; for (const t of s.split(",").map(x => x.trim().replace(/^#/, "")).filter(Boolean)) { if (!seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); } } return out; };
+
+/* ---------- adăugare / editare intrare ---------- */
 function openEdit(e) {
-  if (!S.user) return askUser(() => openEdit(e));
-  const cats = [...new Set(S.entries.filter(x => !x.deleted && x.cat).map(x => x.cat))].sort((a, b) => a.localeCompare(b, "ro"));
-  const o = document.createElement("div"); o.className = "ov";
-  o.innerHTML = `<div class="box"><h1>${e ? "Editează" : "Adaugă"}</h1>
-  <label>Titlu / site</label><input id="f_t" value="${esc(e?.title)}">
-  <label>Categorie</label><input id="f_cat" list="f_cats" value="${esc(e?.cat)}" placeholder="alege sau scrie una nouă" autocomplete="off">
-  <datalist id="f_cats">${cats.map(c => `<option value="${esc(c)}">`).join("")}</datalist>
-  <label>Adresă (opțional)</label><input id="f_url" value="${esc(e?.url)}">
-  <label>Utilizator</label><input id="f_u" value="${esc(e?.user)}" autocomplete="off">
-  <label>Parolă</label><div class="row"><input id="f_p" value="${esc(e?.pass)}" autocomplete="off">
-  <button class="sec" id="f_g" type="button">Generează</button></div>
-  <label style="display:block;margin-top:10px">Note</label><textarea id="f_n" rows="3">${esc(e?.notes)}</textarea>
-  <div class="row"><button id="f_s">Salvează</button><button class="sec" id="f_c">Anulează</button></div></div>`;
-  document.body.appendChild(o);
+  const d = e ? e.d : {};
+  const o = modal(`<h1>${e ? "Editează" : "Adaugă"}</h1>
+  <label>Titlu / site</label><input id="f_t" value="${esc(d.title)}">
+  <label>Categorie</label><select id="f_cat">${catList().map(c => `<option value="${esc(c.id)}"${c.id === (e ? catOf(d) : (S.cat || GENERAL)) ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
+  <label>Tag-uri (separate prin virgulă)</label><input id="f_tags" value="${esc((d.tags || []).join(", "))}" autocomplete="off" autocapitalize="off">
+  <label>Adresă (opțional)</label><input id="f_url" value="${esc(d.url)}">
+  <label>Utilizator</label><input id="f_u" value="${esc(d.user)}" autocomplete="off">
+  <label>Parolă</label><div class="row"><input id="f_p" value="${esc(d.pass)}" autocomplete="off"><button class="sec" id="f_g" type="button">Generează</button></div>
+  <label style="display:block;margin-top:10px">Note</label><textarea id="f_n" rows="3">${esc(d.notes)}</textarea>
+  <div class="err" id="f_e"></div>
+  <div class="row"><button id="f_s">Salvează</button><button class="sec" id="f_c">Anulează</button></div>`);
   $("#f_g").onclick = () => { $("#f_p").value = genPass(); };
   $("#f_c").onclick = () => o.remove();
-  $("#f_s").onclick = () => {
+  $("#f_s").onclick = async () => {
     const t = $("#f_t").value.trim(); if (!t) return $("#f_t").focus();
-    const d = { title: t, url: $("#f_url").value.trim(), user: $("#f_u").value, pass: $("#f_p").value, notes: $("#f_n").value, cat: $("#f_cat").value.trim() };
-    const now = Date.now();
-    if (e) {
-      const ch = Object.keys(FIELDS).filter(k => (e[k] || "") !== d[k]);
-      if (!ch.length) return o.remove();
-      Object.assign(e, d, { updated: now, updatedBy: S.user,
-        history: [...(e.history || []), { t: now, by: S.user, f: ch.map(k => FIELDS[k]) }].slice(-MAX_HIST) });
-    } else {
-      S.entries.push({ id: uid(), ...d, created: now, createdBy: S.user, updated: now, updatedBy: S.user,
-        history: [{ t: now, by: S.user, f: ["creat"] }] });
-    }
-    o.remove(); renderList(); save();
+    const f = { title: t, cat: $("#f_cat").value, tags: parseTags($("#f_tags").value), url: $("#f_url").value.trim(), user: $("#f_u").value, pass: $("#f_p").value, notes: $("#f_n").value };
+    $("#f_s").disabled = true;
+    try { await saveEntry(e, f); o.remove(); renderList(); } catch (er) { console.error(er); $("#f_e").textContent = "Eroare la salvare."; $("#f_s").disabled = false; }
   };
   $("#f_t").focus();
 }
 
+/* ---------- meniu ---------- */
+function openMenu() {
+  const o = modal(`<h1>👤 ${esc(me().name)} <span class="meta">${isAdmin() ? "admin" : "membru"}</span></h1><div class="menu">
+    <button class="sec" id="m_pw">Schimbă parola mea</button>
+    <button class="sec" id="m_ex">Export CSV</button>
+    ${isAdmin() ? `<button class="sec" id="m_us">Utilizatori</button><button class="sec" id="m_ct">Categorii</button><button class="sec" id="m_cn">Conexiune GitHub</button>` : ""}
+    <button class="sec" id="m_lo">Deconectare</button><button class="sec" id="m_x">Închide</button></div>`);
+  const go = (id, fn) => { $(id).onclick = () => { o.remove(); fn(); }; };
+  go("#m_pw", openChangePw); go("#m_ex", openExport); go("#m_lo", () => logout());
+  if (isAdmin()) { go("#m_us", openUsers); go("#m_ct", openCats); go("#m_cn", openConn); }
+  $("#m_x").onclick = () => o.remove();
+}
+async function busy(btn, errEl, fn) {
+  btn.disabled = true; errEl.textContent = "";
+  try { await fn(); return true; } catch (e) { errEl.textContent = e.message || "Eroare."; btn.disabled = false; return false; }
+}
+function openChangePw() {
+  const o = modal(`<h1>Schimbă parola</h1>
+  <label>Parola actuală</label><input id="w_o" type="password" autocomplete="current-password">
+  <label>Parola nouă (minim 10 caractere)</label><input id="w_n" type="password" autocomplete="new-password">
+  <label>Repetă parola nouă</label><input id="w_r" type="password" autocomplete="new-password">
+  <div class="err" id="w_e"></div><div class="row"><button id="w_s">Salvează</button><button class="sec" id="w_c">Anulează</button></div>`);
+  $("#w_c").onclick = () => o.remove();
+  $("#w_s").onclick = () => busy($("#w_s"), $("#w_e"), async () => {
+    if ($("#w_n").value.length < 10) throw new Error("Minim 10 caractere.");
+    if ($("#w_n").value !== $("#w_r").value) throw new Error("Parolele noi nu coincid.");
+    await changePw($("#w_o").value, $("#w_n").value); o.remove(); toast("Parola a fost schimbată");
+  });
+}
+function openRecover() {
+  const o = modal(`<h1>Recuperare admin</h1>
+  <p style="font-size:14px;color:var(--mut)">Introdu cheia de recuperare notată la crearea seifului și alege o parolă nouă de admin.</p>
+  <label>Cheie de recuperare</label><input id="r_k" autocomplete="off" spellcheck="false">
+  <label>Parolă nouă (minim 10 caractere)</label><input id="r_p" type="password" autocomplete="new-password">
+  <div class="err" id="r_e"></div><div class="row"><button id="r_s">Recuperează</button><button class="sec" id="r_c">Anulează</button></div>`);
+  $("#r_c").onclick = () => o.remove();
+  $("#r_s").onclick = () => busy($("#r_s"), $("#r_e"), async () => {
+    if ($("#r_p").value.length < 10) throw new Error("Parola: minim 10 caractere.");
+    await recoverAdmin($("#r_k").value, $("#r_p").value); o.remove(); localStorage.setItem("vault_last", me().name); viewMain();
+  });
+}
+function openUsers() {
+  const o = modal(`<h1>Utilizatori</h1>
+  ${members().map(u => `<div class="item"><b>${esc(u.name)}</b> <span class="meta">membru</span>
+    <div class="acts"><button class="sm sec" data-r="${u.id}">Resetează parola</button><button class="sm dg" data-d="${u.id}">Șterge</button></div></div>`).join("") || '<div class="st">Niciun membru încă.</div>'}
+  <h1 style="margin-top:16px">Adaugă membru</h1>
+  <label>Nume</label><input id="n_n" autocomplete="off" maxlength="30">
+  <label>Parolă inițială (minim 8 caractere, membrul o poate schimba)</label>
+  <div class="row"><input id="n_p" autocomplete="off"><button class="sec" id="n_g" type="button">Generează</button></div>
+  <div class="err" id="n_e"></div><div class="row"><button id="n_a">Adaugă</button><button class="sec" id="n_x">Închide</button></div>`);
+  $("#n_x").onclick = () => o.remove();
+  $("#n_g").onclick = () => { $("#n_p").value = genPass(14); };
+  $("#n_a").onclick = () => busy($("#n_a"), $("#n_e"), async () => {
+    const n = $("#n_n").value, p = $("#n_p").value; $("#n_a").textContent = "Se creează…";
+    await addUser(n, p); o.remove(); toast(`Utilizator creat. Parola inițială: ${p}`); openUsers();
+  }).then(ok => { if (!ok) $("#n_a").textContent = "Adaugă"; });
+  o.querySelectorAll("[data-r]").forEach(b => b.onclick = async () => {
+    const u = userById(b.dataset.r), p = prompt(`Parolă nouă pentru ${u.name} (minim 8 caractere):`, genPass(14));
+    if (!p) return; b.disabled = true;
+    try { await resetUser(u.id, p); toast(`Parolă resetată pentru ${u.name}`); } catch (e) { alert(e.message); }
+    b.disabled = false;
+  });
+  o.querySelectorAll("[data-d]").forEach(b => b.onclick = async () => {
+    const u = userById(b.dataset.d);
+    if (!confirm(`Ștergi utilizatorul ${u.name}? Pierde accesul la toate parolele.`)) return;
+    b.disabled = true; try { await removeUser(u.id); o.remove(); openUsers(); renderList(); } catch (e) { alert(e.message); b.disabled = false; }
+  });
+}
+function openCats() {
+  const counts = new Map(); for (const e of visible()) { const c = catOf(e.d); counts.set(c, (counts.get(c) || 0) + 1); }
+  const o = modal(`<h1>Categorii</h1>
+  ${catList().map(c => `<div class="item"><b>${esc(c.name)}</b> <span class="meta">${counts.get(c.id) || 0} intrări</span>
+    ${c.id === GENERAL ? '<div class="meta">Categorie implicită, nu poate fi ștearsă.</div>' : `<div class="acts"><button class="sm sec" data-rn="${c.id}">Redenumește</button><button class="sm dg" data-dc="${c.id}">Șterge</button></div>`}</div>`).join("")}
+  <h1 style="margin-top:16px">Adaugă categorie</h1>
+  <input id="k_n" autocomplete="off" maxlength="40" placeholder="Nume categorie">
+  <div class="err" id="k_e"></div><div class="row"><button id="k_a">Adaugă</button><button class="sec" id="k_x">Închide</button></div>`);
+  $("#k_x").onclick = () => o.remove();
+  const again = () => { o.remove(); openCats(); renderList(); };
+  $("#k_a").onclick = () => busy($("#k_a"), $("#k_e"), async () => { await addCat($("#k_n").value); again(); });
+  o.querySelectorAll("[data-rn]").forEach(b => b.onclick = async () => {
+    const c = catList().find(x => x.id === b.dataset.rn), n = prompt("Nume nou:", c.name); if (!n) return;
+    try { await renCat(c.id, n); again(); } catch (e) { alert(e.message); }
+  });
+  o.querySelectorAll("[data-dc]").forEach(b => b.onclick = async () => {
+    const c = catList().find(x => x.id === b.dataset.dc), n = counts.get(c.id) || 0;
+    if (!confirm(`Ștergi categoria „${c.name}”?${n ? ` Cele ${n} intrări rămân și trec în General.` : ""}`)) return;
+    try { await delCat(c.id); again(); } catch (e) { alert(e.message); }
+  });
+}
+function openConn() {
+  const code = btoa(JSON.stringify({ r: CFG.repo, t: CFG.token }));
+  const o = modal(`<h1>Conexiune GitHub</h1>
+  <label>Repo de date</label><input id="g_r" value="${esc(CFG.repo)}" autocapitalize="off" autocomplete="off">
+  <label>Token nou (lasă gol ca să păstrezi token-ul actual)</label><input id="g_t" type="password" autocomplete="off" placeholder="github_pat_...">
+  <div class="err" id="g_e"></div><button id="g_s">Salvează conexiunea</button>
+  <h1 style="margin-top:18px">Cod de activare</h1>
+  <p class="meta">Membrii îl lipesc o singură dată pe un dispozitiv nou, înainte de autentificare. Conține token-ul: trimite-l doar pe un canal sigur.</p>
+  <textarea id="g_c" rows="3" readonly>${esc(code)}</textarea>
+  <div class="row"><button class="sec" id="g_cp">Copiază codul</button><button class="sec" id="g_x">Închide</button></div>`);
+  $("#g_x").onclick = () => o.remove();
+  $("#g_cp").onclick = () => copy(code, "Cod copiat");
+  $("#g_s").onclick = () => busy($("#g_s"), $("#g_e"), async () => {
+    const old = { ...CFG };
+    try { await checkCfg($("#g_r").value, $("#g_t").value.trim() || old.token); }
+    catch (e) { CFG = old; throw e; }
+    o.remove(); toast("Conexiune salvată"); refresh();
+  });
+}
+
 /* ---------- export CSV ---------- */
 function buildCsv(sep) {
-  const head = ["categorie", "titlu", "adresa", "utilizator", "parola", "note", "creat_de", "creat_la", "modificat_de", "modificat_la"];
-  const rows = S.entries.filter(e => !e.deleted)
-    .sort((a, b) => (a.cat || "").localeCompare(b.cat || "", "ro") || (a.title || "").localeCompare(b.title || "", "ro"))
-    .map(e => [e.cat, e.title, e.url, e.user, e.pass, e.notes, e.createdBy, isoLocal(e.created), e.updatedBy, isoLocal(e.updated)]);
+  const adm = isAdmin();
+  const head = ["categorie", "tag-uri", "titlu", "adresa", "utilizator", "parola", "note", "creat_de", "creat_la", "modificat_de", "modificat_la", ...(adm ? ["vizibil_pentru"] : [])];
+  const rows = visible().sort((a, b) => catName(catOf(a.d)).localeCompare(catName(catOf(b.d)), "ro") || (a.d.title || "").localeCompare(b.d.title || "", "ro"))
+    .map(e => { const d = e.d; return [catName(catOf(d)), (d.tags || []).join(" "), d.title, d.url, d.user, d.pass, d.notes, d.createdBy, isoLocal(d.created), d.updatedBy, isoLocal(d.updated),
+      ...(adm ? [Object.keys(e.rec.k).map(i => (userById(i) || { name: "?" }).name).join(" / ")] : [])]; });
   const cell = v => { const s = String(v ?? ""); return (s.includes(sep) || /["\r\n]/.test(s)) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   return "﻿" + [head, ...rows].map(r => r.map(cell).join(sep)).join("\r\n") + "\r\n";
 }
 function openExport() {
-  const o = document.createElement("div"); o.className = "ov";
-  o.innerHTML = `<div class="box"><h1>Export CSV</h1>
-  <p class="err" style="min-height:0">Fișierul conține toate parolele în clar. Păstrează-l într-un loc sigur și șterge-l după folosire.</p>
+  const o = modal(`<h1>Export CSV</h1>
+  <p class="err" style="min-height:0">Fișierul conține parolele ${isAdmin() ? "tuturor intrărilor" : "pe care le vezi"} în clar. Păstrează-l într-un loc sigur și șterge-l după folosire.</p>
   <label>Separator</label><select id="x_sep"><option value=";">punct și virgulă (Excel în română)</option><option value=",">virgulă (standard)</option></select>
-  <label>Confirmă parola master</label><input id="x_pw" type="password" autocomplete="current-password">
-  <div class="err" id="x_err"></div>
-  <div class="row"><button id="x_go">Descarcă CSV</button><button class="sec" id="x_c">Anulează</button></div></div>`;
-  document.body.appendChild(o);
+  <label>Confirmă parola ta</label><input id="x_pw" type="password" autocomplete="current-password">
+  <div class="err" id="x_e"></div><div class="row"><button id="x_go">Descarcă CSV</button><button class="sec" id="x_c">Anulează</button></div>`);
   $("#x_c").onclick = () => o.remove();
-  const go = async () => {
-    $("#x_err").textContent = ""; $("#x_go").disabled = true;
-    try {
-      const k = await deriveKey($("#x_pw").value, S.salt, S.iter), keep = S.key;
-      S.key = k; try { await decryptBlob(JSON.parse(S.text)); } finally { S.key = keep; }
-    } catch (e) { $("#x_err").textContent = "Parolă greșită."; $("#x_go").disabled = false; return; }
+  const go = () => busy($("#x_go"), $("#x_e"), async () => {
+    try { await unwrapPw(me().w, $("#x_pw").value); } catch (e) { throw new Error("Parolă greșită."); }
     const blob = new Blob([buildCsv($("#x_sep").value)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
     a.download = "seif-" + isoLocal(Date.now()).slice(0, 10) + ".csv";
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     o.remove(); toast("CSV descărcat");
-  };
+  });
   $("#x_go").onclick = go; $("#x_pw").onkeydown = e => { if (e.key === "Enter") go(); };
   $("#x_pw").focus();
 }
 
 /* ---------- blocare automată ---------- */
 let lockTimer, hiddenAt = 0;
-function armLock() { clearTimeout(lockTimer); if (S.key) lockTimer = setTimeout(lock, LOCK_MS); }
+function armLock() { clearTimeout(lockTimer); if (S.priv) lockTimer = setTimeout(() => logout(), LOCK_MS); }
 ["click", "keydown", "touchstart", "mousemove"].forEach(ev => addEventListener(ev, armLock, { passive: true }));
-function lock() {
-  clearTimeout(lockTimer); S.key = null; S.entries = []; S.open = null; S.shown = {}; S.q = ""; S.cat = ""; S.hist = null;
-  document.querySelectorAll(".ov").forEach(x => x.remove());
-  S.text = localStorage.getItem("vault_cache") || S.text; viewUnlock();
-}
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) { hiddenAt = Date.now(); return; }
-  if (S.key) { if (Date.now() - hiddenAt > LOCK_MS) lock(); else refresh(); }
+  if (S.priv) { if (Date.now() - hiddenAt > LOCK_MS) logout(); else refresh(); }
 });
-addEventListener("online", () => { if (S.key) refresh(); });
+addEventListener("online", () => { if (S.priv) refresh(); });
 
 init();
 </script>
