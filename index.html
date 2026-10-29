@@ -10,7 +10,7 @@
 @media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2027;--tx:#e6e8eb;--mut:#9aa3af;--ac:#5b9bff;--bd:#2a313b;--dg:#f87171}}
 *{box-sizing:border-box}
 body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
-.wrap{max-width:720px;margin:0 auto;padding:12px}
+.wrap{max-width:1000px;margin:0 auto;padding:12px}
 .box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin:12px 0}
 .center{max-width:380px;margin:12vh auto 0}
 h1{font-size:20px;margin:0 0 12px}
@@ -48,6 +48,20 @@ button:disabled{opacity:.6}
 a{color:var(--ac)}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111c;color:#fff;padding:8px 16px;border-radius:20px;font-size:14px;z-index:30}
 .key{font:15px ui-monospace,monospace;word-break:break-all;background:var(--bg);border:1px dashed var(--bd);border-radius:8px;padding:12px;margin:10px 0}
+.tbl{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--bd)}
+.tbl th{font-size:12px;text-align:left;color:var(--mut);padding:8px 10px;border-bottom:1px solid var(--bd);white-space:nowrap;user-select:none}
+.tbl th[data-act]{cursor:pointer}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--bd);vertical-align:top;word-break:break-word}
+.tbl tr.row:hover td{background:rgba(127,127,127,.08)}
+.tbl tr.detr td{background:rgba(127,127,127,.06)}
+.tbl .t{font-weight:600;cursor:pointer}
+.tbl .pw{font-family:ui-monospace,monospace;white-space:nowrap}
+.tbl .ac{white-space:nowrap;text-align:right}
+.tbl .ac button{padding:4px 8px;font-size:14px;margin-left:4px}
+.tbl .tag{margin:0}
+.detr .det{margin:0;border:0;padding:0}
+.sm-only{display:none}
+@media(max-width:640px){.hm{display:none}.sm-only{display:inline}.tbl th,.tbl td{padding:8px 6px}}
 </style>
 </head>
 <body>
@@ -64,7 +78,7 @@ const RSA = { name: "RSA-OAEP", hash: "SHA-256" };
 
 let CFG = null; // { repo, token }
 const S = { raw: null, plain: new Map(), meId: null, priv: null, etag: null, text: null,
-            online: true, open: null, shown: {}, q: "", cat: "", hist: null };
+            online: true, open: null, shown: {}, q: "", cat: "", hist: null, sort: { k: "title", d: 1 } };
 const enc = new TextEncoder(), dec = new TextDecoder();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -481,24 +495,36 @@ function renderChips() {
   const chip = (v, label, n) => `<button class="chip${S.cat === v ? " on" : ""}" data-act="chip" data-v="${esc(v)}">${esc(label)} <span>${n}</span></button>`;
   el.innerHTML = chip("", "Toate", ents.length) + list.map(c => chip(c.id, c.name, m.get(c.id))).join("");
 }
+function sortKey(e, k) {
+  const d = e.d;
+  if (k === "cat") return catName(catOf(d)).toLowerCase();
+  if (k === "updated") return d.updated || 0;
+  return String(d[k] || "").toLowerCase();
+}
 function renderList() {
   const el = $("#list"); if (!el) return;
   renderChips();
   const all = visible();
-  const items = all.filter(e => (!S.cat || catOf(e.d) === S.cat) && matches(e, S.q))
-    .sort((a, b) => (a.d.title || "").localeCompare(b.d.title || "", "ro"));
+  const items = all.filter(e => (!S.cat || catOf(e.d) === S.cat) && matches(e, S.q)).sort((a, b) => {
+    const x = sortKey(a, S.sort.k), y = sortKey(b, S.sort.k);
+    const c = typeof x === "number" ? x - y : x.localeCompare(y, "ro");
+    return c * S.sort.d || (a.d.title || "").localeCompare(b.d.title || "", "ro");
+  });
   if (!items.length) { el.innerHTML = `<div class="st">${all.length ? "Niciun rezultat." : "Nu ai nicio parolă vizibilă. Apasă ＋ ca să adaugi prima."}</div>`; return; }
-  const mems = members();
-  el.innerHTML = items.map(e => {
-    const d = e.d, o = S.open === e.id, tags = d.tags || [];
+  const mems = members(), arrow = k => S.sort.k === k ? (S.sort.d > 0 ? " ▲" : " ▼") : "";
+  const rows = items.map(e => {
+    const d = e.d, o = S.open === e.id, tags = d.tags || [], cn = catName(catOf(d));
     const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).join(", "))}`).join("<br>") || "Fără istoric.";
-    const cn = catName(catOf(d));
-    return `<div class="item" data-id="${e.id}"><div class="t" data-act="toggle">${esc(d.title)}</div>
-    <div class="u" data-act="toggle">${esc(d.user)}<span class="tag">${esc(cn)}</span></div>
-    ${tags.length ? `<div>${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}` + (o ? `<div class="det">
+    let h = `<tr class="row" data-id="${e.id}">
+      <td><div class="t" data-act="toggle">${esc(d.title)}</div><span class="sm-only tag">${esc(cn)}</span>
+        ${tags.length ? `<div>${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}</td>
+      <td class="hm"><span class="tag">${esc(cn)}</span></td>
+      <td>${esc(d.user)}</td>
+      <td class="pw">${S.shown[e.id] ? esc(d.pass) : "••••••••"}</td>
+      <td class="hm meta">${esc(fmt(d.updated))}</td>
+      <td class="ac"><button class="sm" data-act="cu" title="Copiază utilizatorul">👤</button><button class="sm" data-act="cp" title="Copiază parola">🔑</button><button class="sm sec" data-act="show" title="Arată / ascunde parola">${S.shown[e.id] ? "🙈" : "👁"}</button><button class="sm sec" data-act="toggle" title="Detalii">${o ? "▴" : "▾"}</button></td></tr>`;
+    if (o) h += `<tr class="detr" data-id="${e.id}"><td colspan="6"><div class="det">
       ${d.url ? `<div>🌐 <a href="${esc(/^https?:/i.test(d.url) ? d.url : "https://" + d.url)}" target="_blank" rel="noopener">${esc(d.url)}</a></div>` : ""}
-      <div>👤 ${esc(d.user)}</div>
-      <div>🔑 ${S.shown[e.id] ? esc(d.pass) : "••••••••••"}</div>
       ${d.notes ? `<div style="color:var(--mut);white-space:pre-wrap">${esc(d.notes)}</div>` : ""}
       <div class="meta">Creat de <b>${esc(d.createdBy || "—")}</b>, ${esc(fmt(d.created))}<br>Modificat de <b>${esc(d.updatedBy || "—")}</b>, ${esc(fmt(d.updated))}</div>
       <div><a href="#" data-act="hist">${S.hist === e.id ? "Ascunde istoricul" : "Istoric modificări"}</a></div>
@@ -506,11 +532,16 @@ function renderList() {
       ${isAdmin() ? `<div class="acc"><div class="meta"><b>Vizibil pentru:</b></div>
         ${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}>${esc(u.name)}</label>`).join("") || '<div class="meta">Niciun membru încă.</div>'}
         ${mems.length ? '<button class="sm sec" data-act="acc">Aplică accesul</button>' : ""}</div>` : ""}
-      <div class="acts"><button class="sm" data-act="cu">Copiază user</button>
-      <button class="sm" data-act="cp">Copiază parola</button>
-      <button class="sm sec" data-act="show">${S.shown[e.id] ? "Ascunde" : "Arată"}</button>
-      ${canEdit(e) ? `<button class="sm sec" data-act="edit">Editează</button><button class="sm dg" data-act="del">Șterge</button>` : ""}</div></div>` : "") + `</div>`;
+      ${canEdit(e) ? `<div class="acts"><button class="sm sec" data-act="edit">Editează</button><button class="sm dg" data-act="del">Șterge</button></div>` : ""}</div></td></tr>`;
+    return h;
   }).join("");
+  el.innerHTML = `<div style="overflow-x:auto"><table class="tbl"><thead><tr>
+    <th data-act="sort" data-k="title">Titlu${arrow("title")}</th>
+    <th class="hm" data-act="sort" data-k="cat">Categorie${arrow("cat")}</th>
+    <th data-act="sort" data-k="user">Utilizator${arrow("user")}</th>
+    <th>Parolă</th>
+    <th class="hm" data-act="sort" data-k="updated">Modificat${arrow("updated")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="st">${items.length} ${items.length === 1 ? "intrare" : "intrări"}</div>`;
 }
 document.addEventListener("click", async ev => {
   const b = ev.target.closest("[data-act]"); if (!b) return;
@@ -519,7 +550,8 @@ document.addEventListener("click", async ev => {
   if (act === "chip") { S.cat = b.dataset.v; return renderList(); }
   if (act === "tag") { S.q = "#" + b.dataset.t; const q = $("#q"); if (q) q.value = S.q; return renderList(); }
   if (act === "menu") return openMenu();
-  const card = b.closest(".item"); const e = card && visible().find(x => x.id === card.dataset.id);
+  if (act === "sort") { const k = b.dataset.k; S.sort = S.sort.k === k ? { k, d: -S.sort.d } : { k, d: k === "updated" ? -1 : 1 }; return renderList(); }
+  const card = b.closest("[data-id]"); const e = card && visible().find(x => x.id === card.dataset.id);
   if (!e) return;
   if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
   else if (act === "show") { S.shown[e.id] = !S.shown[e.id]; renderList(); }
