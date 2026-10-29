@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1f2937">
+<title>Seif</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mut:#6b7280;--ac:#2563eb;--bd:#e5e7eb;--dg:#dc2626}
+@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2027;--tx:#e6e8eb;--mut:#9aa3af;--ac:#5b9bff;--bd:#2a313b;--dg:#f87171}}
+*{box-sizing:border-box}
+body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+.wrap{max-width:720px;margin:0 auto;padding:12px}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin:12px 0}
+.center{max-width:380px;margin:12vh auto 0}
+h1{font-size:20px;margin:0 0 12px}
+input,textarea{width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;margin:4px 0 10px}
+label{font-size:13px;color:var(--mut)}
+button{padding:10px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
+button.sec{background:var(--bd);color:var(--tx)}
+button.dg{background:var(--dg)}
+button.sm{padding:6px 10px;font-size:14px}
+button:disabled{opacity:.6}
+.row{display:flex;gap:8px;align-items:center}
+.row>input{margin:0}
+.bar{position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:5}
+.item{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin:8px 0}
+.item .t{font-weight:600;cursor:pointer}
+.item .u{color:var(--mut);font-size:14px;cursor:pointer}
+.det{margin-top:10px;border-top:1px solid var(--bd);padding-top:10px}
+.det div{margin:6px 0;word-break:break-all}
+.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.st{font-size:12px;color:var(--mut);text-align:center;margin:8px 0}
+.err{color:var(--dg);font-size:14px;min-height:18px}
+.ov{position:fixed;inset:0;background:#0009;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:16px;z-index:20}
+.ov .box{width:100%;max-width:480px;margin:4vh 0}
+a{color:var(--ac)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111c;color:#fff;padding:8px 16px;border-radius:20px;font-size:14px;z-index:30}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* Seif: pagina nu conține nicio parolă și nicio configurare personală.
+   Datele stau criptate (AES-256-GCM) în vault.json, într-un repo privat GitHub. */
+
+const ITER = 600000, LOCK_MS = 5 * 60 * 1000, CLIP_MS = 30000;
+
+let CFG = null; // { repo: "utilizator/repo", token: "github_pat_..." }
+const S = { key: null, salt: null, iter: ITER, entries: [], etag: null, text: null,
+            online: true, open: null, shown: {}, q: "", edit: null };
+const enc = new TextEncoder(), dec = new TextDecoder();
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => crypto.getRandomValues(new Uint32Array(4)).join("-");
+
+/* ---------- criptare ---------- */
+function b64(buf) { const a = new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 8192) s += String.fromCharCode.apply(null, a.subarray(i, i + 8192)); return btoa(s); }
+function unb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+async function deriveKey(pw, saltB64, iter) {
+  const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt: unb64(saltB64), iterations: iter, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function encryptBlob() {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, S.key, enc.encode(JSON.stringify({ entries: S.entries })));
+  return JSON.stringify({ v: 1, iter: S.iter, salt: S.salt, iv: b64(iv), data: b64(ct) });
+}
+async function decryptBlob(o) {
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, S.key, unb64(o.data));
+  return JSON.parse(dec.decode(pt)).entries;
+}
+function merge(a, b) {
+  const m = new Map();
+  for (const e of [...a, ...b]) { const x = m.get(e.id); if (!x || (e.updated || 0) > (x.updated || 0)) m.set(e.id, e); }
+  return [...m.values()];
+}
+
+/* ---------- GitHub (Contents API) ---------- */
+const apiUrl = () => `https://api.github.com/repos/${CFG.repo}/contents/vault.json`;
+const hdr = () => ({ Authorization: "Bearer " + CFG.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" });
+function ghErr(r) { return Object.assign(new Error("GitHub " + r.status), { code: r.status }); }
+async function remoteGet() {
+  const r = await fetch(apiUrl(), { headers: hdr(), cache: "no-store" });
+  if (r.status === 404) return null;
+  if (!r.ok) throw ghErr(r);
+  const j = await r.json();
+  return { sha: j.sha, text: atob(String(j.content).replace(/\s/g, "")) };
+}
+async function remotePut(text, sha) {
+  const body = { message: "update", content: btoa(text) };
+  if (sha) body.sha = sha;
+  const r = await fetch(apiUrl(), { method: "PUT", headers: { ...hdr(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.status === 409 || r.status === 422) return { conflict: true };
+  if (!r.ok) throw ghErr(r);
+  return { sha: (await r.json()).content.sha };
+}
+function netStatus(e) {
+  if (e && (e.code === 401 || e.code === 403)) return "Token respins de GitHub (expirat sau fără drept de scriere)";
+  return null;
+}
+
+/* ---------- salvare / sincronizare ---------- */
+function status(t) { const e = $("#st"); if (e) e.textContent = t; }
+async function save() {
+  S.text = await encryptBlob();
+  localStorage.setItem("vault_cache", S.text);
+  localStorage.setItem("vault_dirty", "1");
+  status("Se salvează…");
+  try {
+    for (let i = 0; i < 4; i++) {
+      const r = await remotePut(S.text, S.etag);
+      if (!r.conflict) { S.etag = r.sha; localStorage.removeItem("vault_dirty"); S.online = true; status("Sincronizat ✓"); return; }
+      const m = await remoteGet(); S.etag = m ? m.sha : null;
+      if (m) S.entries = merge(S.entries, await decryptBlob(JSON.parse(m.text)));
+      S.text = await encryptBlob(); localStorage.setItem("vault_cache", S.text); renderList();
+    }
+    status("Conflict nerezolvat, încearcă din nou");
+  } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline – salvat local, se sincronizează mai târziu"); }
+}
+async function refresh() {
+  if (!S.key) return;
+  try {
+    const m = await remoteGet();
+    if (m && m.sha !== S.etag) {
+      S.entries = merge(S.entries, await decryptBlob(JSON.parse(m.text)));
+      S.etag = m.sha; S.text = await encryptBlob(); localStorage.setItem("vault_cache", S.text); renderList();
+    }
+    S.online = true;
+    if (localStorage.getItem("vault_dirty")) await save(); else status("Sincronizat ✓");
+  } catch (e) { S.online = false; status(netStatus(e) || "Offline"); }
+}
+
+/* ---------- pornire ---------- */
+async function load() {
+  S.text = null; S.etag = null;
+  try {
+    const m = await remoteGet();
+    if (m) { S.etag = m.sha; S.text = m.text; }
+    S.online = true;
+  } catch (e) {
+    console.error(e);
+    if (e.code === 401) return viewConfig("Token invalid sau expirat. Introdu unul nou.");
+    S.online = false;
+  }
+  if (!S.text) S.text = localStorage.getItem("vault_cache");
+  if (!S.text) return S.online ? viewSetup() : viewMsg("Nu pot contacta GitHub și nu există copie locală.");
+  viewUnlock();
+}
+async function init() {
+  setManifest();
+  try { CFG = JSON.parse(localStorage.getItem("gh_cfg") || "null"); } catch (e) { CFG = null; }
+  if (!CFG || !CFG.repo || !CFG.token) return viewConfig();
+  await load();
+}
+function setManifest() {
+  const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#1f2937"/><rect x="136" y="236" width="240" height="180" rx="24" fill="#fff"/><path d="M186 236v-50a70 70 0 0 1 140 0v50" fill="none" stroke="#fff" stroke-width="32"/><circle cx="256" cy="320" r="24" fill="#1f2937"/></svg>');
+  const man = { name: "Seif", short_name: "Seif", start_url: location.pathname, display: "standalone",
+    background_color: "#1f2937", theme_color: "#1f2937",
+    icons: [{ src: icon, sizes: "512x512", type: "image/svg+xml", purpose: "any" }] };
+  const l = document.createElement("link"); l.rel = "manifest";
+  l.href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(man));
+  document.head.appendChild(l);
+}
+
+/* ---------- ecrane ---------- */
+const app = () => $("#app");
+function viewMsg(t) { app().innerHTML = `<div class="center box"><h1>Seif</h1><p>${esc(t)}</p><button id="cfg" class="sec">Schimbă repo / token</button></div>`; $("#cfg").onclick = () => viewConfig(); }
+function viewConfig(msg) {
+  const old = CFG || {};
+  app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
+  <p style="color:var(--mut);font-size:14px">Conectează seiful la repo-ul privat de date de pe GitHub.</p>
+  <label>Repo de date (utilizator/repo)</label>
+  <input id="c_repo" value="${esc(old.repo)}" placeholder="numele-tau/seif-data" autocapitalize="off" autocomplete="off" spellcheck="false">
+  <label>Token GitHub (Contents: Read and write)</label>
+  <input id="c_tok" type="password" autocomplete="off" placeholder="github_pat_...">
+  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Continuă</button></div>`;
+  $("#go").onclick = async () => {
+    const repo = $("#c_repo").value.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "").replace(/\/$/, "");
+    const token = $("#c_tok").value.trim();
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) return $("#err").textContent = "Completează repo-ul (utilizator/repo) și token-ul.";
+    $("#go").disabled = true; $("#err").textContent = "";
+    try {
+      const r = await fetch("https://api.github.com/repos/" + repo, { headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json" }, cache: "no-store" });
+      if (r.status === 401) throw new Error("Token invalid sau expirat.");
+      if (r.status === 404) throw new Error("Repo-ul nu e găsit sau token-ul nu are acces la el.");
+      if (!r.ok) throw new Error("GitHub a răspuns " + r.status);
+      CFG = { repo, token }; localStorage.setItem("gh_cfg", JSON.stringify(CFG));
+      await load();
+    } catch (e) { $("#err").textContent = e.message || "Eroare de rețea."; $("#go").disabled = false; }
+  };
+}
+function viewSetup() {
+  app().innerHTML = `<div class="center box"><h1>Creează seiful</h1>
+  <p style="color:var(--mut);font-size:14px">Alege parola master (minim 10 caractere). Dacă o uiți, parolele nu se pot recupera.</p>
+  <label>Parola master</label><input id="p1" type="password" autocomplete="new-password">
+  <label>Repetă parola</label><input id="p2" type="password" autocomplete="new-password">
+  <div class="err" id="err"></div><button id="go">Creează</button></div>`;
+  $("#go").onclick = async () => {
+    const a = $("#p1").value, b = $("#p2").value;
+    if (a.length < 10) return $("#err").textContent = "Minim 10 caractere.";
+    if (a !== b) return $("#err").textContent = "Parolele nu coincid.";
+    $("#go").disabled = true; $("#go").textContent = "Se creează…";
+    S.salt = b64(crypto.getRandomValues(new Uint8Array(16))); S.iter = ITER;
+    S.key = await deriveKey(a, S.salt, S.iter); S.entries = [];
+    await save(); viewMain();
+  };
+}
+function viewUnlock() {
+  app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
+  <label>Parola master</label><input id="pw" type="password" autocomplete="current-password" autofocus>
+  <div class="err" id="err"></div><button id="go">Deblochează</button>
+  <p class="st">${S.online ? "" : "Offline – se folosește copia locală"}</p>
+  <p class="st"><a href="#" id="out">Schimbă repo / token</a></p></div>`;
+  const go = async () => {
+    $("#err").textContent = ""; $("#go").disabled = true;
+    try {
+      const o = JSON.parse(S.text); S.salt = o.salt; S.iter = o.iter;
+      S.key = await deriveKey($("#pw").value, o.salt, o.iter);
+      S.entries = await decryptBlob(o);
+      const c = localStorage.getItem("vault_cache");
+      if (c && c !== S.text) { try { S.entries = merge(S.entries, await decryptBlob(JSON.parse(c))); } catch (e) {} }
+      viewMain();
+      if (localStorage.getItem("vault_dirty")) save();
+    } catch (e) { S.key = null; $("#err").textContent = "Parolă greșită."; $("#go").disabled = false; }
+  };
+  $("#go").onclick = go; $("#pw").onkeydown = e => { if (e.key === "Enter") go(); };
+  $("#out").onclick = e => { e.preventDefault(); viewConfig(); };
+}
+function viewMain() {
+  app().innerHTML = `<div class="wrap"><div class="bar"><div class="row">
+    <input id="q" placeholder="Caută…" autocomplete="off" autofocus>
+    <button id="add" title="Adaugă">＋</button>
+    <button class="sec" id="sync" title="Sincronizează">⟳</button>
+    <button class="sec" id="lock" title="Blochează">🔒</button></div></div>
+    <div id="list"></div><div class="st" id="st"></div></div>`;
+  $("#q").value = S.q;
+  $("#q").oninput = e => { S.q = e.target.value; renderList(); };
+  $("#add").onclick = () => openEdit(null);
+  $("#sync").onclick = refresh;
+  $("#lock").onclick = lock;
+  renderList(); if (S.etag !== null || S.text) refresh(); armLock();
+}
+function renderList() {
+  const el = $("#list"); if (!el) return;
+  const q = S.q.trim().toLowerCase();
+  const items = S.entries.filter(e => !e.deleted &&
+    (!q || [e.title, e.user, e.url, e.notes].some(f => (f || "").toLowerCase().includes(q))))
+    .sort((a, b) => (a.title || "").localeCompare(b.title || "", "ro"));
+  if (!items.length) { el.innerHTML = `<div class="st">${S.entries.some(e => !e.deleted) ? "Niciun rezultat." : "Seiful e gol. Apasă ＋ ca să adaugi prima parolă."}</div>`; return; }
+  el.innerHTML = items.map(e => {
+    const o = S.open === e.id;
+    return `<div class="item" data-id="${e.id}"><div class="t" data-act="toggle">${esc(e.title)}</div>
+    <div class="u" data-act="toggle">${esc(e.user)}</div>` + (o ? `<div class="det">
+      ${e.url ? `<div>🌐 <a href="${esc(/^https?:/i.test(e.url) ? e.url : "https://" + e.url)}" target="_blank" rel="noopener">${esc(e.url)}</a></div>` : ""}
+      <div>👤 ${esc(e.user)}</div>
+      <div>🔑 ${S.shown[e.id] ? esc(e.pass) : "••••••••••"}</div>
+      ${e.notes ? `<div style="color:var(--mut);white-space:pre-wrap">${esc(e.notes)}</div>` : ""}
+      <div class="acts"><button class="sm" data-act="cu">Copiază user</button>
+      <button class="sm" data-act="cp">Copiază parola</button>
+      <button class="sm sec" data-act="show">${S.shown[e.id] ? "Ascunde" : "Arată"}</button>
+      <button class="sm sec" data-act="edit">Editează</button>
+      <button class="sm dg" data-act="del">Șterge</button></div></div>` : "") + `</div>`;
+  }).join("");
+}
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const card = b.closest(".item"); const e = card && S.entries.find(x => x.id === card.dataset.id);
+  const act = b.dataset.act;
+  if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
+  else if (act === "show") { S.shown[e.id] = !S.shown[e.id]; renderList(); }
+  else if (act === "cu") copy(e.user, "User copiat");
+  else if (act === "cp") copy(e.pass, "Parolă copiată (se șterge în 30 s)", true);
+  else if (act === "edit") openEdit(e);
+  else if (act === "del") { if (confirm(`Ștergi „${e.title}”?`)) { e.deleted = true; e.updated = Date.now(); e.user = e.pass = e.notes = ""; renderList(); save(); } }
+});
+async function copy(t, msg, clear) {
+  try { await navigator.clipboard.writeText(t || ""); toast(msg); } catch (e) { toast("Nu am putut copia"); return; }
+  if (clear) setTimeout(() => navigator.clipboard.writeText(" ").catch(() => {}), CLIP_MS);
+}
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2000); }
+
+/* ---------- adăugare / editare ---------- */
+function genPass(n = 20) {
+  const cs = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*-_=+";
+  const lim = 256 - (256 % cs.length); let out = "";
+  while (out.length < n) for (const v of crypto.getRandomValues(new Uint8Array(32))) { if (v < lim && out.length < n) out += cs[v % cs.length]; }
+  return out;
+}
+function openEdit(e) {
+  S.edit = e;
+  const o = document.createElement("div"); o.className = "ov"; o.id = "ov";
+  o.innerHTML = `<div class="box"><h1>${e ? "Editează" : "Adaugă"}</h1>
+  <label>Titlu / site</label><input id="f_t" value="${esc(e?.title)}">
+  <label>Adresă (opțional)</label><input id="f_url" value="${esc(e?.url)}">
+  <label>Utilizator</label><input id="f_u" value="${esc(e?.user)}" autocomplete="off">
+  <label>Parolă</label><div class="row"><input id="f_p" value="${esc(e?.pass)}" autocomplete="off">
+  <button class="sec" id="f_g" type="button">Generează</button></div>
+  <label style="display:block;margin-top:10px">Note</label><textarea id="f_n" rows="3">${esc(e?.notes)}</textarea>
+  <div class="row"><button id="f_s">Salvează</button><button class="sec" id="f_c">Anulează</button></div></div>`;
+  document.body.appendChild(o);
+  $("#f_g").onclick = () => { $("#f_p").value = genPass(); };
+  $("#f_c").onclick = () => o.remove();
+  $("#f_s").onclick = () => {
+    const t = $("#f_t").value.trim(); if (!t) return $("#f_t").focus();
+    const d = { id: e ? e.id : uid(), title: t, url: $("#f_url").value.trim(), user: $("#f_u").value, pass: $("#f_p").value, notes: $("#f_n").value, updated: Date.now() };
+    if (e) Object.assign(e, d); else S.entries.push(d);
+    o.remove(); renderList(); save();
+  };
+  $("#f_t").focus();
+}
+
+/* ---------- blocare automată ---------- */
+let lockTimer, hiddenAt = 0;
+function armLock() { clearTimeout(lockTimer); if (S.key) lockTimer = setTimeout(lock, LOCK_MS); }
+["click", "keydown", "touchstart", "mousemove"].forEach(ev => addEventListener(ev, armLock, { passive: true }));
+function lock() {
+  clearTimeout(lockTimer); S.key = null; S.entries = []; S.open = null; S.shown = {}; S.q = "";
+  document.getElementById("ov")?.remove();
+  S.text = localStorage.getItem("vault_cache") || S.text; viewUnlock();
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { hiddenAt = Date.now(); return; }
+  if (S.key) { if (Date.now() - hiddenAt > LOCK_MS) lock(); else refresh(); }
+});
+addEventListener("online", () => { if (S.key) refresh(); });
+
+init();
+</script>
+</body>
+</html>
