@@ -1,92 +1,128 @@
 <!doctype html>
-<html lang="ro">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#1f2937">
-<title>Seif</title>
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<title>Vault</title>
 <style>
-:root{--bg:#f4f5f7;--card:#fff;--tx:#1b1f24;--mut:#6b7280;--ac:#2563eb;--bd:#e5e7eb;--dg:#dc2626}
-@media(prefers-color-scheme:dark){:root{--bg:#111418;--card:#1b2027;--tx:#e6e8eb;--mut:#9aa3af;--ac:#5b9bff;--bd:#2a313b;--dg:#f87171}}
+:root{--bg:#fff;--card:#fff;--tx:#000;--mut:#666;--bd:#d9d9d9;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#000;--card:#0a0a0a;--tx:#fff;--mut:#9b9b9b;--bd:#2e2e2e;color-scheme:dark}}
 *{box-sizing:border-box}
-body{margin:0;font:16px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
-.wrap{max-width:1200px;margin:0 auto;padding:12px}
-.box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;margin:12px 0}
+body{margin:0;font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx)}
+a{color:var(--tx);text-decoration:underline}
+.ic{flex:none;pointer-events:none}
+.wrap{max-width:1280px;margin:0 auto;padding:12px}
+.box{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:18px;margin:12px 0}
 .center{max-width:380px;margin:12vh auto 0}
-h1{font-size:20px;margin:0 0 12px}
-input,textarea,select{width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;margin:4px 0 10px}
-input[type=checkbox]{width:auto;margin:0 8px 0 0}
+h1{font-size:18px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:8px}
+input,textarea,select{width:100%;padding:10px 11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;margin:4px 0 10px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--tx)}
+input[type=checkbox]{width:16px;height:16px;margin:0 8px 0 0;accent-color:var(--tx)}
 label{font-size:13px;color:var(--mut)}
-button{padding:10px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
-button.sec{background:var(--bd);color:var(--tx)}
-button.dg{background:var(--dg)}
+button{padding:9px 14px;border:1px solid var(--tx);border-radius:8px;background:var(--tx);color:var(--bg);font:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+button.sec{background:transparent;color:var(--tx);border-color:var(--bd)}
+button.sec:hover{border-color:var(--tx)}
+button:disabled{opacity:.5;cursor:default}
 button.sm{padding:6px 10px;font-size:14px}
-button:disabled{opacity:.6}
-.menu button{display:block;width:100%;margin:6px 0;text-align:left}
+.ib{width:34px;height:34px;padding:0;flex:none}
+.ico{width:26px;height:26px;padding:0;border:0;background:transparent;color:var(--mut);border-radius:6px;flex:none}
+.ico:hover{color:var(--tx);background:var(--bd)}
+.menu button{width:100%;margin:6px 0;justify-content:flex-start}
 .row{display:flex;gap:8px;align-items:center}
 .row>input{margin:0}
 .bar{position:sticky;top:0;background:var(--bg);padding:10px 0 4px;z-index:5}
-.chips{display:flex;gap:6px;overflow-x:auto;padding:6px 0 8px;scrollbar-width:none}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
-.chip{padding:6px 12px;border-radius:16px;background:var(--bd);color:var(--tx);font-size:14px;white-space:nowrap}
-.chip.on{background:var(--ac);color:#fff}
-.chip span{opacity:.7;font-size:12px}
-.item{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:12px;margin:8px 0}
-.item .t{font-weight:600;cursor:pointer}
-.item .u{color:var(--mut);font-size:14px;cursor:pointer}
-.tag{background:var(--bd);color:var(--tx);border-radius:10px;padding:1px 8px;font-size:12px;margin-left:4px}
-.pill{display:inline-block;background:transparent;color:var(--ac);border:1px solid var(--bd);border-radius:10px;padding:1px 8px;font-size:12px;margin:4px 4px 0 0}
-.det{margin-top:10px;border-top:1px solid var(--bd);padding-top:10px}
-.det div{margin:6px 0;word-break:break-all}
+.chip{padding:5px 12px;border-radius:16px;background:transparent;color:var(--tx);border:1px solid var(--bd);font-size:14px;white-space:nowrap}
+.chip.on{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.chip span{opacity:.6;font-size:12px}
+.tag{display:inline-block;border:1px solid var(--bd);border-radius:10px;padding:1px 8px;font-size:12px;white-space:nowrap}
+.pill{border:1px solid var(--bd);background:transparent;color:var(--tx);border-radius:10px;padding:1px 8px;font-size:12px;flex:none}
+.pill:hover{border-color:var(--tx)}
 .meta{font-size:13px;color:var(--mut)}
-.acc label{display:flex;align-items:center;font-size:14px;color:var(--tx);margin:4px 0}
-.acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.st{font-size:12px;color:var(--mut);text-align:center;margin:8px 0}
-.err{color:var(--dg);font-size:14px;min-height:18px}
-.ov{position:fixed;inset:0;background:#0009;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:16px;z-index:20}
+.st{font-size:12px;color:var(--mut);text-align:center;margin:8px 0;display:flex;gap:6px;align-items:center;justify-content:center}
+.err{color:var(--tx);font-weight:600;font-size:14px;min-height:18px}
+.warn{font-size:14px;font-weight:600}
+.key{font:15px ui-monospace,Menlo,Consolas,monospace;word-break:break-all;border:1px dashed var(--tx);border-radius:8px;padding:12px;margin:10px 0}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:16px;z-index:20}
 .ov .box{width:100%;max-width:480px;margin:4vh 0}
-a{color:var(--ac)}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#111c;color:#fff;padding:8px 16px;border-radius:20px;font-size:14px;z-index:30}
-.key{font:15px ui-monospace,monospace;word-break:break-all;background:var(--bg);border:1px dashed var(--bd);border-radius:8px;padding:12px;margin:10px 0}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;z-index:30}
+/* list */
 .lst{background:var(--card);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
-.lh,.li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr) minmax(0,1.6fr) minmax(0,1.7fr) minmax(0,1.6fr) 132px;column-gap:12px;align-items:center}
-.lh{padding:8px 12px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--bd);user-select:none}
+.lh,.li{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr) minmax(0,2fr) minmax(0,1.5fr) minmax(0,1.6fr) 118px;column-gap:14px;align-items:center}
+.lh{padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--bd);user-select:none;text-transform:uppercase;letter-spacing:.04em}
 .lh>div[data-act]{cursor:pointer}
-.li{padding:10px 12px;border-bottom:1px solid var(--bd)}
+.lh>div[data-act]:hover{color:var(--tx)}
+.li{padding:9px 14px;border-bottom:1px solid var(--bd)}
 .li:last-child{border-bottom:0}
-.li:hover{background:rgba(127,127,127,.06)}
-.li .t{font-weight:600;cursor:pointer;word-break:break-word}
-.li .c-u,.li .c-p{display:flex;align-items:center;gap:2px;flex-wrap:wrap;word-break:break-all}
-.ico{background:transparent;border:0;padding:2px 6px;font-size:15px;line-height:1.2;border-radius:6px;cursor:pointer;color:var(--tx)}
-.ico:hover{background:var(--bd)}
-.li .c-g{display:flex;flex-wrap:wrap;gap:4px}
-.li .c-g .pill{margin:0}
-.li .c-a{display:flex;gap:4px;justify-content:flex-end}
-.li .c-a button{padding:6px 9px;font-size:14px}
-.li .tag{margin:0}
-.c-d{grid-column:1/-1;margin-top:10px}
-.pw{font-family:ui-monospace,monospace}
+.li:hover{background:rgba(128,128,128,.07)}
+.nw{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.li .t{font-weight:600;cursor:pointer}
+.c-u,.c-p{display:flex;align-items:center;gap:2px;min-width:0;flex-wrap:nowrap}
+.c-u .un,.c-p .pw{flex:0 1 auto}
+.pw{font-family:ui-monospace,Menlo,Consolas,monospace}
+.c-g{display:flex;flex-wrap:nowrap;gap:4px;overflow:hidden;min-width:0;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent)}
+.c-a{display:flex;gap:4px;justify-content:flex-end}
+.c-d{grid-column:1/-1;margin-top:12px}
+.zones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.zone{border:1px solid var(--bd);border-radius:8px;padding:12px;min-width:0}
+.zh{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.zb{word-break:break-word;white-space:pre-wrap}
+.zone a{display:inline-flex;align-items:center;gap:6px;word-break:break-all}
+.none{color:var(--mut)}
+.acc label{display:flex;align-items:center;font-size:14px;color:var(--tx);margin:6px 0}
+.foot{margin-top:10px;font-size:13px;color:var(--mut);display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
+.foot a{display:inline-flex;align-items:center;gap:6px;color:var(--tx);cursor:pointer}
+.hist{font-size:13px;color:var(--mut);margin-top:8px}
 .mob,.sm-only{display:none}
 @media(max-width:700px){
-  .lh,.hm{display:none}.sm-only{display:inline}.mob{display:block}
+  .lh,.hm{display:none}.sm-only{display:inline-block}.mob{display:block}
   .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u" "p p" "g g";row-gap:4px}
   .li .c-t{grid-area:t}.li .c-a{grid-area:a}.li .c-g{grid-area:g}
   .li .c-u{grid-area:u;font-size:14px;color:var(--mut)}.li .c-p{grid-area:p;font-size:14px}
   .li .c-g:empty{display:none}
+  .zones{grid-template-columns:1fr}
 }
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script>
-/* Seif multi-utilizator. Pagina nu conține nicio parolă sau configurare personală.
-   vault.json (repo privat GitHub): utilizatori (cheie privată criptată cu parola lor),
-   categorii și intrări. Fiecare intrare are cheia ei, împachetată separat pentru fiecare
-   utilizator care are voie s-o vadă. */
+/* Multi-user vault. The page contains no passwords and no personal configuration.
+   vault.json (private GitHub repo): users (private key encrypted with their password),
+   categories and entries. Every entry has its own key, wrapped separately for each
+   user who may see it. */
 
 const ITER = 600000, LOCK_MS = 5 * 60 * 1000, CLIP_MS = 30000, MAX_HIST = 30, GENERAL = "general";
-const FIELDS = { title: "titlu", url: "adresă", user: "utilizator", pass: "parolă", notes: "note", cat: "categorie", tags: "tag-uri" };
+const FIELDS = { title: "title", url: "URL", user: "username", pass: "password", notes: "notes", cat: "category", tags: "tags" };
+const LEGACY = { "creat": "created", "șters": "deleted", "acces": "access", "titlu": "title", "adresă": "URL", "utilizator": "username", "parolă": "password", "note": "notes", "categorie": "category", "tag-uri": "tags" };
 const RSA = { name: "RSA-OAEP", hash: "SHA-256" };
+
+/* ---------- line icons (Feather style) ---------- */
+const P = {
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  "eye-off": '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>',
+  edit: '<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+  down: '<polyline points="6 9 12 15 18 9"/>',
+  up: '<polyline points="18 15 12 9 6 15"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  menu: '<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  note: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'
+};
+const ic = (n, s = 16) => `<svg class="ic" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+const ibtn = (n, act, title, extra = "") => `<button class="ib sec" data-act="${act}" title="${title}" aria-label="${title}" ${extra}>${ic(n)}</button>`;
+const ico = (n, act, title) => `<button class="ico" data-act="${act}" title="${title}" aria-label="${title}">${ic(n, 15)}</button>`;
 
 let CFG = null; // { repo, token }
 const S = { raw: null, plain: new Map(), meId: null, priv: null, etag: null, text: null,
@@ -96,10 +132,11 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => [...crypto.getRandomValues(new Uint8Array(12))].map(b => b.toString(16).padStart(2, "0")).join("");
 const rnd = n => crypto.getRandomValues(new Uint8Array(n));
-const fmt = t => t ? new Date(t).toLocaleString("ro-RO", { dateStyle: "short", timeStyle: "short" }) : "—";
+const cmp = (a, b) => String(a).localeCompare(String(b), "en");
+const fmt = t => t ? new Date(t).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" }) : "—";
 const isoLocal = t => t ? new Date(t - new Date(t).getTimezoneOffset() * 60000).toISOString().slice(0, 16).replace("T", " ") : "";
 
-/* ---------- criptare ---------- */
+/* ---------- crypto ---------- */
 function b64(buf) { const a = new Uint8Array(buf); let s = ""; for (let i = 0; i < a.length; i += 8192) s += String.fromCharCode.apply(null, a.subarray(i, i + 8192)); return btoa(s); }
 function unb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
 async function pwKey(pw, saltB64, iter) {
@@ -127,7 +164,7 @@ async function pubOf(u) {
 }
 async function wrapFor(u, rawDek) { return b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, await pubOf(u), rawDek)); }
 
-/* ---------- structura datelor ---------- */
+/* ---------- data model ---------- */
 const userById = id => S.raw.users.find(u => u.id === id);
 const me = () => S.raw && S.raw.users.find(u => u.id === S.meId && !u.del);
 const isAdmin = () => { const m = me(); return !!m && m.role === "admin"; };
@@ -136,7 +173,7 @@ const members = () => S.raw.users.filter(u => u.role !== "admin" && !u.del);
 const accessFor = id => [...new Set([id, ...admins().map(a => a.id)])];
 const canEdit = e => isAdmin() || e.d.createdById === S.meId;
 function catList() {
-  const l = S.raw.cats.filter(c => !c.del && c.id !== GENERAL).sort((a, b) => a.name.localeCompare(b.name, "ro"));
+  const l = S.raw.cats.filter(c => !c.del && c.id !== GENERAL).sort((a, b) => cmp(a.name, b.name));
   return [{ id: GENERAL, name: "General" }, ...l];
 }
 const catOf = d => catList().some(c => c.id === d.cat) ? d.cat : GENERAL;
@@ -182,12 +219,12 @@ async function syncPlain() {
     if (rec.del || !rec.k || !rec.k[S.meId]) continue;
     const p = S.plain.get(rec.id);
     if (p && p.u === rec.u) { keep.set(rec.id, p); continue; }
-    try { const o = await openRec(rec); if (o) keep.set(rec.id, o); } catch (e) { console.error("intrare nedecriptabilă", rec.id, e); }
+    try { const o = await openRec(rec); if (o) keep.set(rec.id, o); } catch (e) { console.error("undecryptable entry", rec.id, e); }
   }
   S.plain = keep;
 }
 
-/* ---------- operații ---------- */
+/* ---------- operations ---------- */
 function replaceRec(rec) { const i = S.raw.entries.findIndex(r => r.id === rec.id); if (i >= 0) S.raw.entries[i] = rec; else S.raw.entries.push(rec); }
 const same = (a, b) => JSON.stringify(a ?? "") === JSON.stringify(b ?? "");
 
@@ -210,17 +247,17 @@ async function doLogin(name, pw) {
 }
 async function recoverAdmin(hex, nw) {
   const h = hex.replace(/[^0-9a-f]/gi, "");
-  if (h.length !== 64) throw new Error("Cheia de recuperare are 64 de caractere (cifre și litere a-f).");
+  if (h.length !== 64) throw new Error("The recovery key has 64 characters (digits and letters a–f).");
   const rk = Uint8Array.from(h.match(/../g).map(x => parseInt(x, 16)));
-  const a = admins()[0]; if (!a || !a.rec) throw new Error("Nu există cheie de recuperare.");
-  let pkcs8; try { pkcs8 = await aesOpen(await rawKey(rk), a.rec); } catch (e) { throw new Error("Cheie de recuperare greșită."); }
+  const a = admins()[0]; if (!a || !a.rec) throw new Error("There is no recovery key.");
+  let pkcs8; try { pkcs8 = await aesOpen(await rawKey(rk), a.rec); } catch (e) { throw new Error("Wrong recovery key."); }
   a.w = await wrapPw(pkcs8, nw); a.u = Date.now();
   S.priv = await crypto.subtle.importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
   S.meId = a.id; S.plain = new Map(); await syncPlain(); await save();
 }
 async function changePw(old, nw) {
   const m = me(); let pk;
-  try { pk = await unwrapPw(m.w, old); } catch (e) { throw new Error("Parola actuală e greșită."); }
+  try { pk = await unwrapPw(m.w, old); } catch (e) { throw new Error("Current password is wrong."); }
   m.w = await wrapPw(pk, nw); m.u = Date.now(); await save();
 }
 async function saveEntry(ex, f) {
@@ -234,7 +271,7 @@ async function saveEntry(ex, f) {
     S.plain.set(ex.id, { u: now, dek: ex.p.dek, data: nd });
   } else {
     const dek = await newDek(), id = uid();
-    const nd = { ...f, created: now, createdBy: m.name, createdById: m.id, updated: now, updatedBy: m.name, history: [{ t: now, by: m.name, f: ["creat"] }] };
+    const nd = { ...f, created: now, createdBy: m.name, createdById: m.id, updated: now, updatedBy: m.name, history: [{ t: now, by: m.name, f: ["created"] }] };
     replaceRec(await seal(id, nd, dek, accessFor(m.id), now));
     S.plain.set(id, { u: now, dek, data: nd });
   }
@@ -247,21 +284,21 @@ async function delEntry(e) {
 async function applyAccess(e, ids) {
   const now = Date.now(), m = me(), dek = await newDek();
   const all = [...new Set([...ids, ...admins().map(a => a.id)])];
-  const nd = { ...e.d, updated: now, updatedBy: m.name, history: [...(e.d.history || []), { t: now, by: m.name, f: ["acces"] }].slice(-MAX_HIST) };
+  const nd = { ...e.d, updated: now, updatedBy: m.name, history: [...(e.d.history || []), { t: now, by: m.name, f: ["access"] }].slice(-MAX_HIST) };
   replaceRec(await seal(e.id, nd, dek, all, now));
   S.plain.set(e.id, { u: now, dek, data: nd }); await save();
 }
 async function addUser(name, pw) {
   name = name.trim();
-  if (!name) throw new Error("Introdu un nume.");
-  if (pw.length < 8) throw new Error("Parola inițială: minim 8 caractere.");
-  if (S.raw.users.some(u => !u.del && u.name.toLowerCase() === name.toLowerCase())) throw new Error("Există deja un utilizator cu acest nume.");
+  if (!name) throw new Error("Enter a name.");
+  if (pw.length < 8) throw new Error("Initial password: at least 8 characters.");
+  if (S.raw.users.some(u => !u.del && u.name.toLowerCase() === name.toLowerCase())) throw new Error("A user with this name already exists.");
   const k = await newUserKeys(pw);
   S.raw.users.push({ id: uid(), name, role: "member", pub: k.pub, w: k.w, u: Date.now() });
   await save();
 }
 async function resetUser(id, pw) {
-  if (pw.length < 8) throw new Error("Minim 8 caractere.");
+  if (pw.length < 8) throw new Error("At least 8 characters.");
   const u = userById(id), now = Date.now(), k = await newUserKeys(pw);
   u.pub = k.pub; u.w = k.w; u.u = now;
   for (const rec of S.raw.entries) {
@@ -284,19 +321,19 @@ async function removeUser(id) {
 }
 async function addCat(name) {
   name = name.trim();
-  if (!name) throw new Error("Introdu un nume.");
-  if (catList().some(c => c.name.toLowerCase() === name.toLowerCase())) throw new Error("Categoria există deja.");
+  if (!name) throw new Error("Enter a name.");
+  if (catList().some(c => c.name.toLowerCase() === name.toLowerCase())) throw new Error("Category already exists.");
   S.raw.cats.push({ id: uid(), name, u: Date.now() }); await save();
 }
 async function renCat(id, name) {
   name = name.trim();
-  if (!name || id === GENERAL) throw new Error("Nume invalid.");
-  if (catList().some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) throw new Error("Categoria există deja.");
+  if (!name || id === GENERAL) throw new Error("Invalid name.");
+  if (catList().some(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) throw new Error("Category already exists.");
   const c = S.raw.cats.find(x => x.id === id); c.name = name; c.u = Date.now(); await save();
 }
 async function delCat(id) {
   if (id === GENERAL) return;
-  const c = S.raw.cats.find(x => x.id === id); c.del = true; c.u = Date.now(); await save(); // intrările rămân și trec automat în General
+  const c = S.raw.cats.find(x => x.id === id); c.del = true; c.u = Date.now(); await save(); // entries stay and fall back to General
 }
 
 /* ---------- GitHub (Contents API) ---------- */
@@ -318,35 +355,35 @@ async function remotePut(text, sha) {
   if (!r.ok) throw ghErr(r);
   return { sha: (await r.json()).content.sha };
 }
-const netStatus = e => (e && (e.code === 401 || e.code === 403)) ? "Token respins de GitHub (expirat sau fără drept de scriere)" : null;
+const netStatus = e => (e && (e.code === 401 || e.code === 403)) ? "Token rejected by GitHub (expired or no write permission)" : null;
 async function checkCfg(repo, token) {
   repo = repo.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/, "").replace(/\/$/, ""); token = token.trim();
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) throw new Error("Completează repo-ul (utilizator/repo) și token-ul.");
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) throw new Error("Fill in the repo (user/repo) and the token.");
   let r; try { r = await fetch("https://api.github.com/repos/" + repo, { headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json" }, cache: "no-store" }); }
-  catch (e) { throw new Error("Eroare de rețea."); }
-  if (r.status === 401) throw new Error("Token invalid sau expirat.");
-  if (r.status === 404) throw new Error("Repo-ul nu e găsit sau token-ul nu are acces la el.");
-  if (!r.ok) throw new Error("GitHub a răspuns " + r.status);
+  catch (e) { throw new Error("Network error."); }
+  if (r.status === 401) throw new Error("Invalid or expired token.");
+  if (r.status === 404) throw new Error("Repo not found, or the token has no access to it.");
+  if (!r.ok) throw new Error("GitHub responded " + r.status);
   CFG = { repo, token }; localStorage.setItem("gh_cfg", JSON.stringify(CFG));
 }
 
-/* ---------- salvare / sincronizare ---------- */
+/* ---------- save / sync ---------- */
 const serialize = () => JSON.stringify(S.raw);
 function cacheRaw() { S.text = serialize(); localStorage.setItem("vault2_cache", S.text); }
 function status(t) { const e = $("#st"); if (e) e.textContent = t; }
 async function save() {
-  cacheRaw(); localStorage.setItem("vault2_dirty", "1"); status("Se salvează…");
+  cacheRaw(); localStorage.setItem("vault2_dirty", "1"); status("Saving…");
   try {
     for (let i = 0; i < 4; i++) {
       const r = await remotePut(S.text, S.etag);
-      if (!r.conflict) { S.etag = r.sha; localStorage.removeItem("vault2_dirty"); S.online = true; status("Sincronizat ✓"); return; }
+      if (!r.conflict) { S.etag = r.sha; localStorage.removeItem("vault2_dirty"); S.online = true; status("Synced"); return; }
       const m = await remoteGet(); S.etag = m ? m.sha : null;
       const rr = m && parseRaw(m.text);
       if (rr) { S.raw = mergeRaw(S.raw, rr); await syncPlain(); }
       cacheRaw(); renderList();
     }
-    status("Conflict nerezolvat, încearcă din nou");
-  } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline – salvat local, se sincronizează mai târziu"); }
+    status("Conflict not resolved, try again");
+  } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline – saved locally, will sync later"); }
 }
 async function refresh() {
   if (!S.priv) return;
@@ -354,13 +391,13 @@ async function refresh() {
     const m = await remoteGet();
     if (m && m.sha !== S.etag) { const r = parseRaw(m.text); if (r) { S.raw = mergeRaw(S.raw, r); S.etag = m.sha; cacheRaw(); } }
     S.online = true;
-    if (!me()) return logout("Contul tău a fost eliminat sau schimbat.");
+    if (!me()) return logout("Your account was removed or changed.");
     await syncPlain(); renderList();
-    if (localStorage.getItem("vault2_dirty")) await save(); else status("Sincronizat ✓");
+    if (localStorage.getItem("vault2_dirty")) await save(); else status("Synced");
   } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline"); }
 }
 
-/* ---------- pornire ---------- */
+/* ---------- startup ---------- */
 async function load() {
   S.raw = null; S.etag = null; S.text = null;
   let remote = null, oldFmt = false;
@@ -370,13 +407,13 @@ async function load() {
     S.online = true;
   } catch (e) {
     console.error(e);
-    if (e.code === 401) return viewActivate("Token invalid sau expirat. Cere un cod nou de activare de la admin.");
+    if (e.code === 401) return viewActivate("Invalid or expired token. Ask the admin for a new activation code.");
     S.online = false;
   }
   const cache = parseRaw(localStorage.getItem("vault2_cache")), dirty = !!localStorage.getItem("vault2_dirty");
   if (remote) S.raw = (cache && dirty) ? mergeRaw(remote, cache) : remote;
   else if (!S.online) S.raw = cache;
-  if (!S.raw) return S.online ? viewSetup(oldFmt) : viewMsg("Nu pot contacta GitHub și nu există copie locală.");
+  if (!S.raw) return S.online ? viewSetup(oldFmt) : viewMsg("Cannot reach GitHub and there is no local copy.");
   cacheRaw(); viewLogin();
 }
 async function init() {
@@ -386,41 +423,41 @@ async function init() {
   await load();
 }
 function setManifest() {
-  const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#1f2937"/><rect x="136" y="236" width="240" height="180" rx="24" fill="#fff"/><path d="M186 236v-50a70 70 0 0 1 140 0v50" fill="none" stroke="#fff" stroke-width="32"/><circle cx="256" cy="320" r="24" fill="#1f2937"/></svg>');
-  const man = { name: "Seif", short_name: "Seif", start_url: location.pathname, display: "standalone", background_color: "#1f2937", theme_color: "#1f2937",
+  const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#000"/><rect x="136" y="236" width="240" height="180" rx="24" fill="#fff"/><path d="M186 236v-50a70 70 0 0 1 140 0v50" fill="none" stroke="#fff" stroke-width="32"/><circle cx="256" cy="320" r="24" fill="#000"/></svg>');
+  const man = { name: "Vault", short_name: "Vault", start_url: location.pathname, display: "standalone", background_color: "#000000", theme_color: "#000000",
     icons: [{ src: icon, sizes: "512x512", type: "image/svg+xml", purpose: "any" }] };
   const l = document.createElement("link"); l.rel = "manifest";
   l.href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(man));
   document.head.appendChild(l);
 }
 
-/* ---------- ecrane de început ---------- */
+/* ---------- start screens ---------- */
 const app = () => $("#app");
-function viewMsg(t) { app().innerHTML = `<div class="center box"><h1>Seif</h1><p>${esc(t)}</p></div>`; }
+function viewMsg(t) { app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1><p>${esc(t)}</p></div>`; }
 function viewActivate(msg) {
-  app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
-  <p style="color:var(--mut);font-size:14px">Dispozitiv nou: lipește codul de activare primit de la admin.</p>
-  <label>Cod de activare</label><textarea id="a_c" rows="3" autocomplete="off" spellcheck="false"></textarea>
-  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Continuă</button>
-  <p class="st"><a href="#" id="man">Configurare manuală (admin)</a></p></div>`;
+  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1>
+  <p class="meta">New device: paste the activation code you received from the admin.</p>
+  <label>Activation code</label><textarea id="a_c" rows="3" autocomplete="off" spellcheck="false"></textarea>
+  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Continue</button>
+  <p class="st"><a href="#" id="man">Manual setup (admin)</a></p></div>`;
   $("#man").onclick = e => { e.preventDefault(); viewConfig(); };
   $("#go").onclick = async () => {
     $("#go").disabled = true; $("#err").textContent = "";
     try {
-      let o; try { o = JSON.parse(atob($("#a_c").value.trim())); } catch (e) { throw new Error("Cod de activare invalid."); }
+      let o; try { o = JSON.parse(atob($("#a_c").value.trim())); } catch (e) { throw new Error("Invalid activation code."); }
       await checkCfg(String(o.r || ""), String(o.t || "")); await load();
     } catch (e) { $("#err").textContent = e.message; $("#go").disabled = false; }
   };
 }
 function viewConfig(msg) {
   const old = CFG || {};
-  app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
-  <p style="color:var(--mut);font-size:14px">Configurare manuală: repo-ul privat de date de pe GitHub.</p>
-  <label>Repo de date (utilizator/repo)</label>
-  <input id="c_repo" value="${esc(old.repo)}" placeholder="numele-tau/seif-data" autocapitalize="off" autocomplete="off" spellcheck="false">
-  <label>Token GitHub (Contents: Read and write)</label>
+  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1>
+  <p class="meta">Manual setup: the private data repo on GitHub.</p>
+  <label>Data repo (user/repo)</label>
+  <input id="c_repo" value="${esc(old.repo)}" placeholder="your-name/vault-data" autocapitalize="off" autocomplete="off" spellcheck="false">
+  <label>GitHub token (Contents: Read and write)</label>
   <input id="c_tok" type="password" autocomplete="off" placeholder="github_pat_...">
-  <div class="err" id="err">${esc(msg || "")}</div><div class="row"><button id="go">Continuă</button><button class="sec" id="bk">Înapoi</button></div></div>`;
+  <div class="err" id="err">${esc(msg || "")}</div><div class="row"><button id="go">Continue</button><button class="sec" id="bk">Back</button></div></div>`;
   $("#bk").onclick = () => viewActivate();
   $("#go").onclick = async () => {
     $("#go").disabled = true; $("#err").textContent = "";
@@ -429,44 +466,44 @@ function viewConfig(msg) {
   };
 }
 function viewSetup(oldFmt) {
-  app().innerHTML = `<div class="center box"><h1>Creează seiful</h1>
-  <p style="color:var(--mut);font-size:14px">Creezi contul de <b>admin</b>. Ceilalți utilizatori îi adaugi tu după aceea.</p>
-  ${oldFmt ? '<p class="err" style="min-height:0">În repo există un seif în format vechi. Dacă continui, va fi înlocuit. Exportă-ți parolele reale înainte, cu versiunea veche.</p>' : ""}
-  <label>Nume admin</label><input id="s_n" autocomplete="username" maxlength="30">
-  <label>Parolă (minim 10 caractere)</label><input id="p1" type="password" autocomplete="new-password">
-  <label>Repetă parola</label><input id="p2" type="password" autocomplete="new-password">
-  <div class="err" id="err"></div><button id="go">Creează</button></div>`;
+  app().innerHTML = `<div class="center box"><h1>Create the vault</h1>
+  <p class="meta">You are creating the <b>admin</b> account. You add the other users afterwards.</p>
+  ${oldFmt ? '<p class="warn">The repo contains a vault in the old format. If you continue, it will be replaced. Export your real passwords first, using the old version.</p>' : ""}
+  <label>Admin name</label><input id="s_n" autocomplete="username" maxlength="30">
+  <label>Password (at least 10 characters)</label><input id="p1" type="password" autocomplete="new-password">
+  <label>Repeat password</label><input id="p2" type="password" autocomplete="new-password">
+  <div class="err" id="err"></div><button id="go">Create</button></div>`;
   $("#go").onclick = async () => {
     const n = $("#s_n").value.trim(), a = $("#p1").value, b = $("#p2").value;
-    if (!n) return $("#err").textContent = "Introdu un nume.";
-    if (a.length < 10) return $("#err").textContent = "Parola: minim 10 caractere.";
-    if (a !== b) return $("#err").textContent = "Parolele nu coincid.";
-    if (oldFmt && !confirm("Seiful vechi din repo va fi înlocuit. Continui?")) return;
-    $("#go").disabled = true; $("#go").textContent = "Se creează…";
+    if (!n) return $("#err").textContent = "Enter a name.";
+    if (a.length < 10) return $("#err").textContent = "Password: at least 10 characters.";
+    if (a !== b) return $("#err").textContent = "Passwords do not match.";
+    if (oldFmt && !confirm("The old vault in the repo will be replaced. Continue?")) return;
+    $("#go").disabled = true; $("#go").textContent = "Creating…";
     try { const hex = await createVault(n, a); localStorage.setItem("vault_last", n); viewRecovery(hex); }
-    catch (e) { console.error(e); $("#err").textContent = "Eroare la creare."; $("#go").disabled = false; $("#go").textContent = "Creează"; }
+    catch (e) { console.error(e); $("#err").textContent = "Error while creating."; $("#go").disabled = false; $("#go").textContent = "Create"; }
   };
 }
 function viewRecovery(hex) {
-  app().innerHTML = `<div class="center box"><h1>Cheie de recuperare</h1>
-  <p style="font-size:14px">Dacă uiți parola de admin, doar această cheie îți redă accesul. <b>Notează-o pe hârtie</b> și ține-o într-un loc sigur, în afara seifului. Nu va mai fi afișată.</p>
+  app().innerHTML = `<div class="center box"><h1>Recovery key</h1>
+  <p style="font-size:14px">If you forget the admin password, only this key can restore your access. <b>Write it down on paper</b> and keep it somewhere safe, outside the vault. It will not be shown again.</p>
   <div class="key">${esc(hex)}</div>
-  <button id="go">Am notat-o, continuă</button></div>`;
+  <button id="go">I wrote it down, continue</button></div>`;
   $("#go").onclick = () => { viewMain(); };
 }
 function viewLogin(msg) {
-  app().innerHTML = `<div class="center box"><h1>🔐 Seif</h1>
-  <label>Nume</label><input id="l_n" value="${esc(localStorage.getItem("vault_last") || "")}" autocomplete="username" autocapitalize="off">
-  <label>Parolă</label><input id="l_p" type="password" autocomplete="current-password">
-  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Autentificare</button>
-  <p class="st">${S.online ? "" : "Offline – se folosește copia locală"}</p>
-  <p class="st"><a href="#" id="rec">Recuperare admin</a> · <a href="#" id="act">Dispozitiv nou</a></p></div>`;
+  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1>
+  <label>Name</label><input id="l_n" value="${esc(localStorage.getItem("vault_last") || "")}" autocomplete="username" autocapitalize="off">
+  <label>Password</label><input id="l_p" type="password" autocomplete="current-password">
+  <div class="err" id="err">${esc(msg || "")}</div><button id="go">Sign in</button>
+  <p class="st">${S.online ? "" : "Offline – using the local copy"}</p>
+  <p class="st"><a href="#" id="rec">Admin recovery</a> · <a href="#" id="act">New device</a></p></div>`;
   const go = async () => {
     $("#err").textContent = ""; $("#go").disabled = true;
     try {
       await doLogin($("#l_n").value, $("#l_p").value);
       localStorage.setItem("vault_last", me().name); viewMain();
-    } catch (e) { S.priv = null; S.meId = null; $("#err").textContent = "Nume sau parolă greșită."; $("#go").disabled = false; }
+    } catch (e) { S.priv = null; S.meId = null; $("#err").textContent = "Wrong name or password."; $("#go").disabled = false; }
   };
   $("#go").onclick = go; $("#l_p").onkeydown = e => { if (e.key === "Enter") go(); };
   $("#rec").onclick = e => { e.preventDefault(); openRecover(); };
@@ -479,17 +516,17 @@ function logout(msg) {
   viewLogin(msg);
 }
 
-/* ---------- ecranul principal ---------- */
+/* ---------- main screen ---------- */
 function viewMain() {
   app().innerHTML = `<div class="wrap"><div class="bar"><div class="row">
-    <input id="q" placeholder="Caută după titlu, utilizator sau tag…" autocomplete="off">
-    <button id="add" title="Adaugă">＋</button>
-    <button class="sec" id="sync" title="Sincronizează">⟳</button>
-    <button class="sec" data-act="menu" title="Meniu">☰</button>
-    <button class="sec" id="lock" title="Deconectare">🔒</button></div>
+    <input id="q" placeholder="Search by title, username or tag…" autocomplete="off">
+    <button class="ib" id="add" title="Add entry" aria-label="Add entry">${ic("plus")}</button>
+    <button class="ib sec" id="sync" title="Sync" aria-label="Sync">${ic("refresh")}</button>
+    <button class="ib sec" data-act="menu" title="Menu" aria-label="Menu">${ic("menu")}</button>
+    <button class="ib sec" id="lock" title="Lock" aria-label="Lock">${ic("lock")}</button></div>
     <div class="chips" id="chips"></div></div>
     <div id="list"></div><div class="st" id="st"></div>
-    <div class="st">👤 ${esc(me().name)} · ${isAdmin() ? "admin" : "membru"}</div></div>`;
+    <div class="st">${ic("user", 14)} ${esc(me().name)} · ${isAdmin() ? "admin" : "member"}</div></div>`;
   $("#q").value = S.q;
   $("#q").oninput = e => { S.q = e.target.value; renderList(); };
   $("#add").onclick = () => openEdit(null);
@@ -505,7 +542,7 @@ function renderChips() {
   if (S.cat && !m.has(S.cat)) S.cat = "";
   if (list.length < 2) { el.innerHTML = ""; if (list.length) S.cat = ""; return; }
   const chip = (v, label, n) => `<button class="chip${S.cat === v ? " on" : ""}" data-act="chip" data-v="${esc(v)}">${esc(label)} <span>${n}</span></button>`;
-  el.innerHTML = chip("", "Toate", ents.length) + list.map(c => chip(c.id, c.name, m.get(c.id))).join("");
+  el.innerHTML = chip("", "All", ents.length) + list.map(c => chip(c.id, c.name, m.get(c.id))).join("");
 }
 function sortKey(e, k) {
   const d = e.d;
@@ -519,36 +556,37 @@ function renderList() {
   const all = visible();
   const items = all.filter(e => (!S.cat || catOf(e.d) === S.cat) && matches(e, S.q)).sort((a, b) => {
     const x = sortKey(a, S.sort.k), y = sortKey(b, S.sort.k);
-    const c = typeof x === "number" ? x - y : x.localeCompare(y, "ro");
-    return c * S.sort.d || (a.d.title || "").localeCompare(b.d.title || "", "ro");
+    const c = typeof x === "number" ? x - y : cmp(x, y);
+    return c * S.sort.d || cmp(a.d.title || "", b.d.title || "");
   });
-  if (!items.length) { el.innerHTML = `<div class="st">${all.length ? "Niciun rezultat." : "Nu ai nicio parolă vizibilă. Apasă ＋ ca să adaugi prima."}</div>`; return; }
+  if (!items.length) { el.innerHTML = `<div class="st">${all.length ? "No results." : "No passwords visible to you. Press + to add the first one."}</div>`; return; }
   const mems = members(), arrow = k => S.sort.k === k ? (S.sort.d > 0 ? " ▲" : " ▼") : "";
   const rows = items.map(e => {
     const d = e.d, o = S.open === e.id, tags = d.tags || [], cn = catName(catOf(d)), sh = !!S.shown[e.id];
-    const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).join(", "))}`).join("<br>") || "Fără istoric.";
+    const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).map(x => LEGACY[x] || x).join(", "))}`).join("<br>") || "No history.";
+    const url = d.url ? (/^https?:/i.test(d.url) ? d.url : "https://" + d.url) : "";
+    const detail = !o ? "" : `<div class="c-d"><div class="zones">
+        <div class="zone"><div class="zh">${ic("globe")} Website</div><div class="zb">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(d.url)} ${ic("ext", 14)}</a>` : '<span class="none">No website</span>'}</div></div>
+        <div class="zone"><div class="zh">${ic("note")} Notes</div><div class="zb">${d.notes ? esc(d.notes) : '<span class="none">No notes</span>'}</div></div>
+        <div class="zone acc"><div class="zh">${ic("users")} Access</div>${isAdmin()
+          ? (mems.length ? `<div class="meta">Visible to:</div>${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}>${esc(u.name)}</label>`).join("")}<button class="sm sec" data-act="acc">Apply access</button>` : '<span class="none">No members yet.</span>')
+          : '<span class="none">Managed by an admin.</span>'}</div></div>
+      <div class="foot"><span>Created by <b>${esc(d.createdBy || "—")}</b>, ${esc(fmt(d.created))}</span><span>Modified by <b>${esc(d.updatedBy || "—")}</b>, ${esc(fmt(d.updated))}</span>
+        <a data-act="hist">${ic("clock", 14)} ${S.hist === e.id ? "Hide history" : "History"}</a></div>
+      ${S.hist === e.id ? `<div class="hist">${hist}</div>` : ""}</div>`;
     return `<div class="li" data-id="${e.id}">
-      <div class="c-c hm"><span class="tag">${esc(cn)}</span></div>
-      <div class="c-t"><div class="t" data-act="toggle">${esc(d.title)}</div><span class="sm-only tag">${esc(cn)}</span></div>
-      <div class="c-u"><span class="un">${esc(d.user)}</span>${d.user ? '<button class="ico" data-act="cu" title="Copiază utilizatorul">📋</button>' : ""}</div>
-      <div class="c-p"><span class="pw">${sh ? esc(d.pass) : "••••••••"}</span><button class="ico" data-act="show" title="Arată / ascunde parola">${sh ? "🙈" : "👁"}</button><button class="ico" data-act="cp" title="Copiază parola">📋</button></div>
-      <div class="c-g">${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>
-      <div class="c-a">${canEdit(e) ? '<button class="sm sec" data-act="edit" title="Editează">✏️</button><button class="sm dg" data-act="del" title="Șterge">🗑</button>' : ""}<button class="sm sec" data-act="toggle" title="Detalii">${o ? "▴" : "▾"}</button></div>
-      ${o ? `<div class="c-d det">
-        ${d.url ? `<div>🌐 <a href="${esc(/^https?:/i.test(d.url) ? d.url : "https://" + d.url)}" target="_blank" rel="noopener">${esc(d.url)}</a></div>` : ""}
-        ${d.notes ? `<div style="color:var(--mut);white-space:pre-wrap">${esc(d.notes)}</div>` : ""}
-        <div class="meta">Creat de <b>${esc(d.createdBy || "—")}</b>, ${esc(fmt(d.created))}<br>Modificat de <b>${esc(d.updatedBy || "—")}</b>, ${esc(fmt(d.updated))}</div>
-        <div><a href="#" data-act="hist">${S.hist === e.id ? "Ascunde istoricul" : "Istoric modificări"}</a></div>
-        ${S.hist === e.id ? `<div class="meta">${hist}</div>` : ""}
-        ${isAdmin() ? `<div class="acc"><div class="meta"><b>Vizibil pentru:</b></div>
-          ${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}>${esc(u.name)}</label>`).join("") || '<div class="meta">Niciun membru încă.</div>'}
-          ${mems.length ? '<button class="sm sec" data-act="acc">Aplică accesul</button>' : ""}</div>` : ""}</div>` : ""}
-    </div>`;
+      <div class="c-c hm nw"><span class="tag">${esc(cn)}</span></div>
+      <div class="c-t nw"><span class="t" data-act="toggle" title="${esc(d.title)}">${esc(d.title)}</span><span class="sm-only tag" style="margin-left:6px">${esc(cn)}</span></div>
+      <div class="c-u"><span class="un nw" title="${esc(d.user)}">${esc(d.user)}</span>${d.user ? ico("copy", "cu", "Copy username") : ""}</div>
+      <div class="c-p"><span class="pw nw">${sh ? esc(d.pass) : "••••••••"}</span>${ico(sh ? "eye-off" : "eye", "show", sh ? "Hide password" : "Show password")}${ico("copy", "cp", "Copy password")}</div>
+      <div class="c-g" title="${esc(tags.map(t => "#" + t).join(" "))}">${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>
+      <div class="c-a">${canEdit(e) ? ibtn("edit", "edit", "Edit") + ibtn("trash", "del", "Delete") : ""}${ibtn(o ? "up" : "down", "toggle", o ? "Collapse" : "Expand")}</div>
+      ${detail}</div>`;
   }).join("");
   const opt = (v, l) => `<option value="${v}"${v === S.sort.k + "|" + S.sort.d ? " selected" : ""}>${l}</option>`;
-  el.innerHTML = `<select id="sortSel" class="mob">${opt("title|1", "Sortare: titlu A-Z")}${opt("user|1", "Sortare: utilizator")}${opt("cat|1", "Sortare: categorie")}${opt("updated|-1", "Sortare: modificate recent")}</select>
-    <div class="lst"><div class="lh"><div data-act="sort" data-k="cat">Categorie${arrow("cat")}</div><div data-act="sort" data-k="title">Titlu${arrow("title")}</div><div data-act="sort" data-k="user">Utilizator${arrow("user")}</div><div>Parolă</div><div>Tag-uri</div><div></div></div>${rows}</div>
-    <div class="st">${items.length} ${items.length === 1 ? "intrare" : "intrări"}</div>`;
+  el.innerHTML = `<select id="sortSel" class="mob">${opt("title|1", "Sort: title A–Z")}${opt("user|1", "Sort: username")}${opt("cat|1", "Sort: category")}${opt("updated|-1", "Sort: recently modified")}</select>
+    <div class="lst"><div class="lh"><div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div><div>Tags</div><div></div></div>${rows}</div>
+    <div class="st">${items.length} ${items.length === 1 ? "entry" : "entries"}</div>`;
 }
 document.addEventListener("click", async ev => {
   const b = ev.target.closest("[data-act]"); if (!b) return;
@@ -563,19 +601,19 @@ document.addEventListener("click", async ev => {
   if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
   else if (act === "show") { S.shown[e.id] = !S.shown[e.id]; renderList(); }
   else if (act === "hist") { S.hist = S.hist === e.id ? null : e.id; renderList(); }
-  else if (act === "cu") copy(e.d.user, "User copiat");
-  else if (act === "cp") copy(e.d.pass, "Parolă copiată (se șterge în 30 s)", true);
+  else if (act === "cu") copy(e.d.user, "Username copied");
+  else if (act === "cp") copy(e.d.pass, "Password copied (cleared in 30 s)", true);
   else if (act === "edit" && canEdit(e)) openEdit(e);
-  else if (act === "del" && canEdit(e)) { if (confirm(`Ștergi „${e.d.title}”?`)) { await delEntry(e); renderList(); } }
+  else if (act === "del" && canEdit(e)) { if (confirm(`Delete "${e.d.title}"?`)) { await delEntry(e); renderList(); } }
   else if (act === "acc" && isAdmin()) {
     const ids = [...card.querySelectorAll("input[data-uid]:checked")].map(i => i.dataset.uid);
-    b.disabled = true; try { await applyAccess(e, ids); toast("Acces actualizat"); } catch (er) { console.error(er); toast("Eroare"); }
+    b.disabled = true; try { await applyAccess(e, ids); toast("Access updated"); } catch (er) { console.error(er); toast("Error"); }
     renderList();
   }
 });
 document.addEventListener("change", e => { if (e.target && e.target.id === "sortSel") { const [k, d] = e.target.value.split("|"); S.sort = { k, d: +d }; renderList(); } });
 async function copy(t, msg, clear) {
-  try { await navigator.clipboard.writeText(t || ""); toast(msg); } catch (e) { toast("Nu am putut copia"); return; }
+  try { await navigator.clipboard.writeText(t || ""); toast(msg); } catch (e) { toast("Could not copy"); return; }
   if (clear) setTimeout(() => navigator.clipboard.writeText(" ").catch(() => {}), CLIP_MS);
 }
 function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 2200); }
@@ -588,37 +626,37 @@ function genPass(n = 20) {
 }
 const parseTags = s => { const seen = new Set(), out = []; for (const t of s.split(",").map(x => x.trim().replace(/^#/, "")).filter(Boolean)) { if (!seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); } } return out; };
 
-/* ---------- adăugare / editare intrare ---------- */
+/* ---------- add / edit entry ---------- */
 function openEdit(e) {
   const d = e ? e.d : {};
-  const o = modal(`<h1>${e ? "Editează" : "Adaugă"}</h1>
-  <label>Titlu / site</label><input id="f_t" value="${esc(d.title)}">
-  <label>Categorie</label><select id="f_cat">${catList().map(c => `<option value="${esc(c.id)}"${c.id === (e ? catOf(d) : (S.cat || GENERAL)) ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
-  <label>Tag-uri (separate prin virgulă)</label><input id="f_tags" value="${esc((d.tags || []).join(", "))}" autocomplete="off" autocapitalize="off">
-  <label>Adresă (opțional)</label><input id="f_url" value="${esc(d.url)}">
-  <label>Utilizator</label><input id="f_u" value="${esc(d.user)}" autocomplete="off">
-  <label>Parolă</label><div class="row"><input id="f_p" value="${esc(d.pass)}" autocomplete="off"><button class="sec" id="f_g" type="button">Generează</button></div>
-  <label style="display:block;margin-top:10px">Note</label><textarea id="f_n" rows="3">${esc(d.notes)}</textarea>
+  const o = modal(`<h1>${e ? "Edit entry" : "Add entry"}</h1>
+  <label>Title / site</label><input id="f_t" value="${esc(d.title)}">
+  <label>Category</label><select id="f_cat">${catList().map(c => `<option value="${esc(c.id)}"${c.id === (e ? catOf(d) : (S.cat || GENERAL)) ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
+  <label>Tags (comma separated)</label><input id="f_tags" value="${esc((d.tags || []).join(", "))}" autocomplete="off" autocapitalize="off">
+  <label>URL (optional)</label><input id="f_url" value="${esc(d.url)}">
+  <label>Username</label><input id="f_u" value="${esc(d.user)}" autocomplete="off">
+  <label>Password</label><div class="row"><input id="f_p" value="${esc(d.pass)}" autocomplete="off"><button class="sec" id="f_g" type="button">Generate</button></div>
+  <label style="display:block;margin-top:10px">Notes</label><textarea id="f_n" rows="3">${esc(d.notes)}</textarea>
   <div class="err" id="f_e"></div>
-  <div class="row"><button id="f_s">Salvează</button><button class="sec" id="f_c">Anulează</button></div>`);
+  <div class="row"><button id="f_s">Save</button><button class="sec" id="f_c">Cancel</button></div>`);
   $("#f_g").onclick = () => { $("#f_p").value = genPass(); };
   $("#f_c").onclick = () => o.remove();
   $("#f_s").onclick = async () => {
     const t = $("#f_t").value.trim(); if (!t) return $("#f_t").focus();
     const f = { title: t, cat: $("#f_cat").value, tags: parseTags($("#f_tags").value), url: $("#f_url").value.trim(), user: $("#f_u").value, pass: $("#f_p").value, notes: $("#f_n").value };
     $("#f_s").disabled = true;
-    try { await saveEntry(e, f); o.remove(); renderList(); } catch (er) { console.error(er); $("#f_e").textContent = "Eroare la salvare."; $("#f_s").disabled = false; }
+    try { await saveEntry(e, f); o.remove(); renderList(); } catch (er) { console.error(er); $("#f_e").textContent = "Error while saving."; $("#f_s").disabled = false; }
   };
   $("#f_t").focus();
 }
 
-/* ---------- meniu ---------- */
+/* ---------- menu ---------- */
 function openMenu() {
-  const o = modal(`<h1>👤 ${esc(me().name)} <span class="meta">${isAdmin() ? "admin" : "membru"}</span></h1><div class="menu">
-    <button class="sec" id="m_pw">Schimbă parola mea</button>
+  const o = modal(`<h1>${ic("user", 18)} ${esc(me().name)} <span class="meta">${isAdmin() ? "admin" : "member"}</span></h1><div class="menu">
+    <button class="sec" id="m_pw">Change my password</button>
     <button class="sec" id="m_ex">Export CSV</button>
-    ${isAdmin() ? `<button class="sec" id="m_us">Utilizatori</button><button class="sec" id="m_ct">Categorii</button><button class="sec" id="m_cn">Conexiune GitHub</button>` : ""}
-    <button class="sec" id="m_lo">Deconectare</button><button class="sec" id="m_x">Închide</button></div>`);
+    ${isAdmin() ? `<button class="sec" id="m_us">Users</button><button class="sec" id="m_ct">Categories</button><button class="sec" id="m_cn">GitHub connection</button>` : ""}
+    <button class="sec" id="m_lo">Sign out</button><button class="sec" id="m_x">Close</button></div>`);
   const go = (id, fn) => { $(id).onclick = () => { o.remove(); fn(); }; };
   go("#m_pw", openChangePw); go("#m_ex", openExport); go("#m_lo", () => logout());
   if (isAdmin()) { go("#m_us", openUsers); go("#m_ct", openCats); go("#m_cn", openConn); }
@@ -626,106 +664,106 @@ function openMenu() {
 }
 async function busy(btn, errEl, fn) {
   btn.disabled = true; errEl.textContent = "";
-  try { await fn(); return true; } catch (e) { errEl.textContent = e.message || "Eroare."; btn.disabled = false; return false; }
+  try { await fn(); return true; } catch (e) { errEl.textContent = e.message || "Error."; btn.disabled = false; return false; }
 }
 function openChangePw() {
-  const o = modal(`<h1>Schimbă parola</h1>
-  <label>Parola actuală</label><input id="w_o" type="password" autocomplete="current-password">
-  <label>Parola nouă (minim 10 caractere)</label><input id="w_n" type="password" autocomplete="new-password">
-  <label>Repetă parola nouă</label><input id="w_r" type="password" autocomplete="new-password">
-  <div class="err" id="w_e"></div><div class="row"><button id="w_s">Salvează</button><button class="sec" id="w_c">Anulează</button></div>`);
+  const o = modal(`<h1>Change password</h1>
+  <label>Current password</label><input id="w_o" type="password" autocomplete="current-password">
+  <label>New password (at least 10 characters)</label><input id="w_n" type="password" autocomplete="new-password">
+  <label>Repeat new password</label><input id="w_r" type="password" autocomplete="new-password">
+  <div class="err" id="w_e"></div><div class="row"><button id="w_s">Save</button><button class="sec" id="w_c">Cancel</button></div>`);
   $("#w_c").onclick = () => o.remove();
   $("#w_s").onclick = () => busy($("#w_s"), $("#w_e"), async () => {
-    if ($("#w_n").value.length < 10) throw new Error("Minim 10 caractere.");
-    if ($("#w_n").value !== $("#w_r").value) throw new Error("Parolele noi nu coincid.");
-    await changePw($("#w_o").value, $("#w_n").value); o.remove(); toast("Parola a fost schimbată");
+    if ($("#w_n").value.length < 10) throw new Error("At least 10 characters.");
+    if ($("#w_n").value !== $("#w_r").value) throw new Error("The new passwords do not match.");
+    await changePw($("#w_o").value, $("#w_n").value); o.remove(); toast("Password changed");
   });
 }
 function openRecover() {
-  const o = modal(`<h1>Recuperare admin</h1>
-  <p style="font-size:14px;color:var(--mut)">Introdu cheia de recuperare notată la crearea seifului și alege o parolă nouă de admin.</p>
-  <label>Cheie de recuperare</label><input id="r_k" autocomplete="off" spellcheck="false">
-  <label>Parolă nouă (minim 10 caractere)</label><input id="r_p" type="password" autocomplete="new-password">
-  <div class="err" id="r_e"></div><div class="row"><button id="r_s">Recuperează</button><button class="sec" id="r_c">Anulează</button></div>`);
+  const o = modal(`<h1>Admin recovery</h1>
+  <p class="meta">Enter the recovery key you wrote down when the vault was created and choose a new admin password.</p>
+  <label>Recovery key</label><input id="r_k" autocomplete="off" spellcheck="false">
+  <label>New password (at least 10 characters)</label><input id="r_p" type="password" autocomplete="new-password">
+  <div class="err" id="r_e"></div><div class="row"><button id="r_s">Recover</button><button class="sec" id="r_c">Cancel</button></div>`);
   $("#r_c").onclick = () => o.remove();
   $("#r_s").onclick = () => busy($("#r_s"), $("#r_e"), async () => {
-    if ($("#r_p").value.length < 10) throw new Error("Parola: minim 10 caractere.");
+    if ($("#r_p").value.length < 10) throw new Error("Password: at least 10 characters.");
     await recoverAdmin($("#r_k").value, $("#r_p").value); o.remove(); localStorage.setItem("vault_last", me().name); viewMain();
   });
 }
 function openUsers() {
-  const o = modal(`<h1>Utilizatori</h1>
-  ${members().map(u => `<div class="item"><b>${esc(u.name)}</b> <span class="meta">membru</span>
-    <div class="acts"><button class="sm sec" data-r="${u.id}">Resetează parola</button><button class="sm dg" data-d="${u.id}">Șterge</button></div></div>`).join("") || '<div class="st">Niciun membru încă.</div>'}
-  <h1 style="margin-top:16px">Adaugă membru</h1>
-  <label>Nume</label><input id="n_n" autocomplete="off" maxlength="30">
-  <label>Parolă inițială (minim 8 caractere, membrul o poate schimba)</label>
-  <div class="row"><input id="n_p" autocomplete="off"><button class="sec" id="n_g" type="button">Generează</button></div>
-  <div class="err" id="n_e"></div><div class="row"><button id="n_a">Adaugă</button><button class="sec" id="n_x">Închide</button></div>`);
+  const o = modal(`<h1>Users</h1>
+  ${members().map(u => `<div class="zone" style="margin-bottom:8px"><b>${esc(u.name)}</b> <span class="meta">member</span>
+    <div class="row" style="margin-top:8px"><button class="sm sec" data-r="${u.id}">Reset password</button><button class="sm sec" data-d="${u.id}">Delete</button></div></div>`).join("") || '<div class="st">No members yet.</div>'}
+  <h1 style="margin-top:16px">Add member</h1>
+  <label>Name</label><input id="n_n" autocomplete="off" maxlength="30">
+  <label>Initial password (at least 8 characters; the member can change it)</label>
+  <div class="row"><input id="n_p" autocomplete="off"><button class="sec" id="n_g" type="button">Generate</button></div>
+  <div class="err" id="n_e"></div><div class="row"><button id="n_a">Add</button><button class="sec" id="n_x">Close</button></div>`);
   $("#n_x").onclick = () => o.remove();
   $("#n_g").onclick = () => { $("#n_p").value = genPass(14); };
   $("#n_a").onclick = () => busy($("#n_a"), $("#n_e"), async () => {
-    const n = $("#n_n").value, p = $("#n_p").value; $("#n_a").textContent = "Se creează…";
-    await addUser(n, p); o.remove(); toast(`Utilizator creat. Parola inițială: ${p}`); openUsers();
-  }).then(ok => { if (!ok) $("#n_a").textContent = "Adaugă"; });
+    const n = $("#n_n").value, p = $("#n_p").value; $("#n_a").textContent = "Creating…";
+    await addUser(n, p); o.remove(); toast(`User created. Initial password: ${p}`); openUsers();
+  }).then(ok => { if (!ok) $("#n_a").textContent = "Add"; });
   o.querySelectorAll("[data-r]").forEach(b => b.onclick = async () => {
-    const u = userById(b.dataset.r), p = prompt(`Parolă nouă pentru ${u.name} (minim 8 caractere):`, genPass(14));
+    const u = userById(b.dataset.r), p = prompt(`New password for ${u.name} (at least 8 characters):`, genPass(14));
     if (!p) return; b.disabled = true;
-    try { await resetUser(u.id, p); toast(`Parolă resetată pentru ${u.name}`); } catch (e) { alert(e.message); }
+    try { await resetUser(u.id, p); toast(`Password reset for ${u.name}`); } catch (e) { alert(e.message); }
     b.disabled = false;
   });
   o.querySelectorAll("[data-d]").forEach(b => b.onclick = async () => {
     const u = userById(b.dataset.d);
-    if (!confirm(`Ștergi utilizatorul ${u.name}? Pierde accesul la toate parolele.`)) return;
+    if (!confirm(`Delete user ${u.name}? They lose access to all passwords.`)) return;
     b.disabled = true; try { await removeUser(u.id); o.remove(); openUsers(); renderList(); } catch (e) { alert(e.message); b.disabled = false; }
   });
 }
 function openCats() {
   const counts = new Map(); for (const e of visible()) { const c = catOf(e.d); counts.set(c, (counts.get(c) || 0) + 1); }
-  const o = modal(`<h1>Categorii</h1>
-  ${catList().map(c => `<div class="item"><b>${esc(c.name)}</b> <span class="meta">${counts.get(c.id) || 0} intrări</span>
-    ${c.id === GENERAL ? '<div class="meta">Categorie implicită, nu poate fi ștearsă.</div>' : `<div class="acts"><button class="sm sec" data-rn="${c.id}">Redenumește</button><button class="sm dg" data-dc="${c.id}">Șterge</button></div>`}</div>`).join("")}
-  <h1 style="margin-top:16px">Adaugă categorie</h1>
-  <input id="k_n" autocomplete="off" maxlength="40" placeholder="Nume categorie">
-  <div class="err" id="k_e"></div><div class="row"><button id="k_a">Adaugă</button><button class="sec" id="k_x">Închide</button></div>`);
+  const o = modal(`<h1>Categories</h1>
+  ${catList().map(c => `<div class="zone" style="margin-bottom:8px"><b>${esc(c.name)}</b> <span class="meta">${counts.get(c.id) || 0} ${(counts.get(c.id) || 0) === 1 ? "entry" : "entries"}</span>
+    ${c.id === GENERAL ? '<div class="meta" style="margin-top:6px">Default category, cannot be deleted.</div>' : `<div class="row" style="margin-top:8px"><button class="sm sec" data-rn="${c.id}">Rename</button><button class="sm sec" data-dc="${c.id}">Delete</button></div>`}</div>`).join("")}
+  <h1 style="margin-top:16px">Add category</h1>
+  <input id="k_n" autocomplete="off" maxlength="40" placeholder="Category name">
+  <div class="err" id="k_e"></div><div class="row"><button id="k_a">Add</button><button class="sec" id="k_x">Close</button></div>`);
   $("#k_x").onclick = () => o.remove();
   const again = () => { o.remove(); openCats(); renderList(); };
   $("#k_a").onclick = () => busy($("#k_a"), $("#k_e"), async () => { await addCat($("#k_n").value); again(); });
   o.querySelectorAll("[data-rn]").forEach(b => b.onclick = async () => {
-    const c = catList().find(x => x.id === b.dataset.rn), n = prompt("Nume nou:", c.name); if (!n) return;
+    const c = catList().find(x => x.id === b.dataset.rn), n = prompt("New name:", c.name); if (!n) return;
     try { await renCat(c.id, n); again(); } catch (e) { alert(e.message); }
   });
   o.querySelectorAll("[data-dc]").forEach(b => b.onclick = async () => {
     const c = catList().find(x => x.id === b.dataset.dc), n = counts.get(c.id) || 0;
-    if (!confirm(`Ștergi categoria „${c.name}”?${n ? ` Cele ${n} intrări rămân și trec în General.` : ""}`)) return;
+    if (!confirm(`Delete category "${c.name}"?${n ? ` The ${n} ${n === 1 ? "entry stays" : "entries stay"} and ${n === 1 ? "moves" : "move"} to General.` : ""}`)) return;
     try { await delCat(c.id); again(); } catch (e) { alert(e.message); }
   });
 }
 function openConn() {
   const code = btoa(JSON.stringify({ r: CFG.repo, t: CFG.token }));
-  const o = modal(`<h1>Conexiune GitHub</h1>
-  <label>Repo de date</label><input id="g_r" value="${esc(CFG.repo)}" autocapitalize="off" autocomplete="off">
-  <label>Token nou (lasă gol ca să păstrezi token-ul actual)</label><input id="g_t" type="password" autocomplete="off" placeholder="github_pat_...">
-  <div class="err" id="g_e"></div><button id="g_s">Salvează conexiunea</button>
-  <h1 style="margin-top:18px">Cod de activare</h1>
-  <p class="meta">Membrii îl lipesc o singură dată pe un dispozitiv nou, înainte de autentificare. Conține token-ul: trimite-l doar pe un canal sigur.</p>
+  const o = modal(`<h1>GitHub connection</h1>
+  <label>Data repo</label><input id="g_r" value="${esc(CFG.repo)}" autocapitalize="off" autocomplete="off">
+  <label>New token (leave empty to keep the current one)</label><input id="g_t" type="password" autocomplete="off" placeholder="github_pat_...">
+  <div class="err" id="g_e"></div><button id="g_s">Save connection</button>
+  <h1 style="margin-top:18px">Activation code</h1>
+  <p class="meta">Members paste it once on a new device, before signing in. It contains the token: send it only over a secure channel.</p>
   <textarea id="g_c" rows="3" readonly>${esc(code)}</textarea>
-  <div class="row"><button class="sec" id="g_cp">Copiază codul</button><button class="sec" id="g_x">Închide</button></div>`);
+  <div class="row"><button class="sec" id="g_cp">${ic("copy")} Copy code</button><button class="sec" id="g_x">Close</button></div>`);
   $("#g_x").onclick = () => o.remove();
-  $("#g_cp").onclick = () => copy(code, "Cod copiat");
+  $("#g_cp").onclick = () => copy(code, "Code copied");
   $("#g_s").onclick = () => busy($("#g_s"), $("#g_e"), async () => {
     const old = { ...CFG };
     try { await checkCfg($("#g_r").value, $("#g_t").value.trim() || old.token); }
     catch (e) { CFG = old; throw e; }
-    o.remove(); toast("Conexiune salvată"); refresh();
+    o.remove(); toast("Connection saved"); refresh();
   });
 }
 
-/* ---------- export CSV ---------- */
+/* ---------- CSV export ---------- */
 function buildCsv(sep) {
   const adm = isAdmin();
-  const head = ["categorie", "tag-uri", "titlu", "adresa", "utilizator", "parola", "note", "creat_de", "creat_la", "modificat_de", "modificat_la", ...(adm ? ["vizibil_pentru"] : [])];
-  const rows = visible().sort((a, b) => catName(catOf(a.d)).localeCompare(catName(catOf(b.d)), "ro") || (a.d.title || "").localeCompare(b.d.title || "", "ro"))
+  const head = ["category", "tags", "title", "url", "username", "password", "notes", "created_by", "created_at", "modified_by", "modified_at", ...(adm ? ["visible_to"] : [])];
+  const rows = visible().sort((a, b) => cmp(catName(catOf(a.d)), catName(catOf(b.d))) || cmp(a.d.title || "", b.d.title || ""))
     .map(e => { const d = e.d; return [catName(catOf(d)), (d.tags || []).join(" "), d.title, d.url, d.user, d.pass, d.notes, d.createdBy, isoLocal(d.created), d.updatedBy, isoLocal(d.updated),
       ...(adm ? [Object.keys(e.rec.k).map(i => (userById(i) || { name: "?" }).name).join(" / ")] : [])]; });
   const cell = v => { const s = String(v ?? ""); return (s.includes(sep) || /["\r\n]/.test(s)) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -733,24 +771,24 @@ function buildCsv(sep) {
 }
 function openExport() {
   const o = modal(`<h1>Export CSV</h1>
-  <p class="err" style="min-height:0">Fișierul conține parolele ${isAdmin() ? "tuturor intrărilor" : "pe care le vezi"} în clar. Păstrează-l într-un loc sigur și șterge-l după folosire.</p>
-  <label>Separator</label><select id="x_sep"><option value=";">punct și virgulă (Excel în română)</option><option value=",">virgulă (standard)</option></select>
-  <label>Confirmă parola ta</label><input id="x_pw" type="password" autocomplete="current-password">
-  <div class="err" id="x_e"></div><div class="row"><button id="x_go">Descarcă CSV</button><button class="sec" id="x_c">Anulează</button></div>`);
+  <p class="warn">The file contains the passwords ${isAdmin() ? "of all entries" : "you can see"} in plain text. Keep it somewhere safe and delete it after use.</p>
+  <label>Separator</label><select id="x_sep"><option value=";">semicolon (Excel, European locales)</option><option value=",">comma (standard)</option></select>
+  <label>Confirm your password</label><input id="x_pw" type="password" autocomplete="current-password">
+  <div class="err" id="x_e"></div><div class="row"><button id="x_go">Download CSV</button><button class="sec" id="x_c">Cancel</button></div>`);
   $("#x_c").onclick = () => o.remove();
   const go = () => busy($("#x_go"), $("#x_e"), async () => {
-    try { await unwrapPw(me().w, $("#x_pw").value); } catch (e) { throw new Error("Parolă greșită."); }
+    try { await unwrapPw(me().w, $("#x_pw").value); } catch (e) { throw new Error("Wrong password."); }
     const blob = new Blob([buildCsv($("#x_sep").value)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = "seif-" + isoLocal(Date.now()).slice(0, 10) + ".csv";
+    a.download = "vault-" + isoLocal(Date.now()).slice(0, 10) + ".csv";
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    o.remove(); toast("CSV descărcat");
+    o.remove(); toast("CSV downloaded");
   });
   $("#x_go").onclick = go; $("#x_pw").onkeydown = e => { if (e.key === "Enter") go(); };
   $("#x_pw").focus();
 }
 
-/* ---------- blocare automată ---------- */
+/* ---------- auto-lock ---------- */
 let lockTimer, hiddenAt = 0;
 function armLock() { clearTimeout(lockTimer); if (S.priv) lockTimer = setTimeout(() => logout(), LOCK_MS); }
 ["click", "keydown", "touchstart", "mousemove"].forEach(ev => addEventListener(ev, armLock, { passive: true }));
