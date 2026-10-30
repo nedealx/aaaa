@@ -747,11 +747,12 @@ function openMenu() {
   const o = modal(`<h1>${ic("user", 18)} ${esc(me().name)} <span class="meta">${isAdmin() ? "admin" : "member"}</span></h1><div class="menu">
     <button class="sec" id="m_pf">My profile</button>
     <button class="sec" id="m_pw">Change my password</button>
+    <button class="sec" id="m_im">Import CSV</button>
     <button class="sec" id="m_ex">Export CSV</button>
     ${isAdmin() ? `<button class="sec" id="m_us">Users</button><button class="sec" id="m_ct">Categories</button><button class="sec" id="m_cn">GitHub connection</button>` : ""}
     <button class="sec" id="m_lo">Sign out</button><button class="sec" id="m_x">Close</button></div>`);
   const go = (id, fn) => { $(id).onclick = () => { o.remove(); fn(); }; };
-  go("#m_pf", () => openProfile(S.meId)); go("#m_pw", openChangePw); go("#m_ex", openExport); go("#m_lo", () => logout());
+  go("#m_pf", () => openProfile(S.meId)); go("#m_pw", openChangePw); go("#m_ex", openExport); go("#m_im", openImport); go("#m_lo", () => logout());
   if (isAdmin()) { go("#m_us", openUsers); go("#m_ct", openCats); go("#m_cn", openConn); }
   $("#m_x").onclick = () => o.remove();
 }
@@ -867,6 +868,135 @@ function openConn() {
     try { await checkCfg($("#g_r").value, $("#g_t").value.trim() || old.token); }
     catch (e) { CFG = old; throw e; }
     o.remove(); toast("Connection saved"); refresh();
+  });
+}
+
+/* ---------- CSV import ---------- */
+const IMP_COLS = ["category", "tags", "title", "url", "registered_email", "username", "password", "notes", "visible_to"];
+const IMP_KEY = { cat: ["category", "categorie", "cat"], tags: ["tags", "tag", "taguri"], title: ["title", "titlu", "name", "nume", "site", "titlesite"],
+  url: ["url", "website", "link", "adresa"], reg: ["registeredemail", "regemail", "email", "emailinregistrare"], user: ["username", "user", "utilizator", "login"],
+  pass: ["password", "parola", "pass"], notes: ["notes", "note", "notite", "observatii", "comments"], vis: ["visibleto", "vizibil", "vizibilitate", "access", "acces"] };
+const normHead = h => String(h || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+function parseCsv(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/, 1)[0];
+  const sep = [";", ",", "\t"].map(c => [c, first.split(c).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], f = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true;
+    else if (c === sep) { row.push(f); f = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(f); f = ""; rows.push(row); row = []; }
+    else f += c;
+  }
+  if (f !== "" || row.length) { row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim() !== ""));
+}
+function templateCsv(sep) {
+  const cell = v => { const s = String(v ?? ""); return (s.includes(sep) || /["\r\n]/.test(s)) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const ex = ["Email", "work, mail", "EXAMPLE: delete this row", "https://mail.example.com", "me@example.com", "me", "my-password", "Any notes", isAdmin() ? "Name 1 | Name 2" : ""];
+  return "﻿" + [IMP_COLS, ex].map(r => r.map(cell).join(sep)).join("\r\n") + "\r\n";
+}
+const dupKey = d => [d.title, d.user, d.pass].map(x => String(x || "").trim().toLowerCase()).join("\u0001");
+function planImport(rows) {
+  const head = rows[0].map(normHead), col = {};
+  for (const [k, names] of Object.entries(IMP_KEY)) { const i = head.findIndex(h => names.includes(h)); if (i >= 0) col[k] = i; }
+  if (col.title === undefined) throw new Error('No "title" column found. Use the template (Download template).');
+  const adm = isAdmin(), cats = catList(), users = S.raw.users.filter(u => !u.del), allMembers = members().map(u => u.id);
+  const seen = new Set(visible().map(e => dupKey(e.d)));
+  const used = new Set(Object.values(col));
+  const plan = { items: [], dup: 0, empty: 0, example: 0, newCats: new Set(), noCat: new Set(), unknown: new Set(), ignoredVis: 0, ignoredCols: rows[0].filter((x, i) => !used.has(i) && x.trim()), noPass: 0 };
+  for (const r of rows.slice(1)) {
+    const g = k => col[k] === undefined ? "" : String(r[col[k]] ?? "").trim();
+    const title = g("title");
+    if (!title) { plan.empty++; continue; }
+    if (/^example:/i.test(title)) { plan.example++; continue; }
+    const it = { title, url: g("url"), reg: g("reg"), user: g("user"), pass: col.pass === undefined ? "" : String(r[col.pass] ?? ""), notes: col.notes === undefined ? "" : String(r[col.notes] ?? "").trim(),
+      tags: parseTags(g("tags").replace(/[;\s]+/g, ",")), catName: "", vis: [] };
+    const key = dupKey(it);
+    if (seen.has(key)) { plan.dup++; continue; }
+    seen.add(key);
+    if (!it.pass) plan.noPass++;
+    const cn = g("cat");
+    if (cn && cn.toLowerCase() !== "general") {
+      if (cats.some(c => c.name.toLowerCase() === cn.toLowerCase())) it.catName = cn;
+      else if (adm) { it.catName = cn; plan.newCats.add(cn); } else plan.noCat.add(cn);
+    }
+    const v = g("vis");
+    if (v) {
+      if (!adm) plan.ignoredVis++;
+      else for (const part of v.split(/\s*[|;\/,]\s*/).map(x => x.trim()).filter(Boolean)) {
+        const q = part.toLowerCase();
+        if (["all", "toti", "everyone"].includes(q)) { it.vis.push(...allMembers); continue; }
+        const u = users.find(x => (x.email || "").toLowerCase() === q) || users.find(x => x.name.toLowerCase() === q);
+        if (u) it.vis.push(u.id); else plan.unknown.add(part);
+      }
+    }
+    plan.items.push(it);
+  }
+  return plan;
+}
+async function runImport(plan) {
+  const now = Date.now(), m = me();
+  const catId = new Map(catList().map(c => [c.name.toLowerCase(), c.id]));
+  for (const n of plan.newCats) if (!catId.has(n.toLowerCase())) { const id = uid(); S.raw.cats.push({ id, name: n, u: now }); catId.set(n.toLowerCase(), id); }
+  for (const it of plan.items) {
+    const nd = { title: it.title, url: it.url, user: it.user, reg: it.reg, pass: it.pass, notes: it.notes, tags: it.tags, cat: (it.catName && catId.get(it.catName.toLowerCase())) || GENERAL,
+      created: now, createdBy: m.name, createdById: m.id, updated: now, updatedBy: m.name, updatedById: m.id, history: [{ t: now, by: m.name, byId: m.id, f: ["created (import)"] }] };
+    const dek = await newDek(), id = uid();
+    replaceRec(await seal(id, nd, dek, [...new Set([...accessFor(m.id), ...it.vis])], now));
+    S.plain.set(id, { u: now, dek, data: nd });
+  }
+  await save();
+}
+function openImport() {
+  const adm = isAdmin();
+  const o = modal(`<h1>Import CSV</h1>
+  <p class="meta">Fill in the template in Excel, save it as CSV, then choose it here. Columns: ${IMP_COLS.join(", ")}.
+  ${adm ? "<b>visible_to</b> says who can see each entry: names or emails separated by <b>|</b>, or <b>all</b> for every member. Admins always see everything." : "Imported entries are visible to you and to the admins."}
+  Categories that do not exist yet ${adm ? "are created." : "are not created: those entries go to General."}</p>
+  <div class="row"><select id="i_sep"><option value=";">Semicolon (Excel EU)</option><option value=",">Comma (standard)</option></select><button class="sec" id="i_t">Download template</button></div>
+  <label>CSV file</label><input id="i_f" type="file" accept=".csv,text/csv,text/plain">
+  <div id="i_s"></div><div class="err" id="i_e"></div>
+  <p class="warn">The file contains passwords in plain text. Delete it after importing, also from Downloads and the recycle bin.</p>
+  <div class="row"><button id="i_go" disabled>Import</button><button class="sec" id="i_c">Close</button></div>`);
+  let plan = null;
+  $("#i_c").onclick = () => o.remove();
+  $("#i_t").onclick = () => {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([templateCsv($("#i_sep").value)], { type: "text/csv;charset=utf-8" }));
+    a.download = "vault-import-template.csv"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  };
+  $("#i_f").onchange = async () => {
+    plan = null; $("#i_go").disabled = true; $("#i_e").textContent = ""; $("#i_s").innerHTML = "";
+    const f = $("#i_f").files[0]; if (!f) return;
+    try {
+      const buf = await f.arrayBuffer();
+      let text = new TextDecoder("utf-8").decode(buf);
+      if (text.includes("�")) text = new TextDecoder("windows-1252").decode(buf); // CSV saved by older Excel
+      const rows = parseCsv(text);
+      if (rows.length < 2) throw new Error("The file has no data rows.");
+      plan = planImport(rows);
+      const L = [];
+      if (plan.dup) L.push(`${plan.dup} duplicate${plan.dup === 1 ? "" : "s"} skipped (same title, username and password already exist or repeat in the file)`);
+      if (plan.empty) L.push(`${plan.empty} row${plan.empty === 1 ? "" : "s"} without a title skipped`);
+      if (plan.example) L.push("the example row was skipped");
+      if (plan.noPass) L.push(`${plan.noPass} ${plan.noPass === 1 ? "entry has" : "entries have"} no password`);
+      if (plan.newCats.size) L.push("new categories: " + [...plan.newCats].join(", "));
+      if (plan.noCat.size) L.push("categories not created (you are not an admin), moved to General: " + [...plan.noCat].join(", "));
+      if (plan.ignoredVis) L.push("visible_to ignored (admins only)");
+      if (plan.ignoredCols.length) L.push("ignored columns: " + plan.ignoredCols.join(", "));
+      const unk = plan.unknown.size ? `<p class="err">Unknown users in visible_to (not shared with them): ${esc([...plan.unknown].join(", "))}</p>` : "";
+      const nm = id => (userById(id) || { name: "?" }).name;
+      const prev = plan.items.slice(0, 5).map(it => `<div class="nw">${esc(it.title)} <span class="meta">· ${esc(it.catName || "General")}${adm ? " · " + (it.vis.length ? esc([...new Set(it.vis)].map(nm).join(", ")) : "only you and admins") : ""}</span></div>`).join("");
+      $("#i_s").innerHTML = `<p><b>${plan.items.length}</b> ${plan.items.length === 1 ? "entry" : "entries"} ready to import.</p>${prev}${plan.items.length > 5 ? `<div class="meta">… and ${plan.items.length - 5} more</div>` : ""}<ul class="meta">${L.map(x => `<li>${esc(x)}</li>`).join("")}</ul>${unk}`;
+      $("#i_go").disabled = !plan.items.length; $("#i_go").textContent = plan.items.length ? `Import ${plan.items.length}` : "Import";
+    } catch (e) { plan = null; $("#i_e").textContent = e.message || "Could not read the file."; }
+  };
+  $("#i_go").onclick = () => busy($("#i_go"), $("#i_e"), async () => {
+    if (!plan || !plan.items.length) return;
+    const n = plan.items.length; $("#i_go").textContent = "Importing…";
+    await runImport(plan); o.remove(); renderList(); toast(`Imported ${n} ${n === 1 ? "entry" : "entries"}`);
   });
 }
 
