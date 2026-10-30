@@ -72,6 +72,7 @@ button.sm{padding:6px 10px;font-size:14px}
 .c-a{display:flex;gap:4px;justify-content:flex-end}
 .c-d{grid-column:1/-1;margin-top:12px}
 .zones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch}
+.regb{display:flex;align-items:center;gap:6px}.regb .nw{min-width:0;flex:1}
 .zcol{display:flex;flex-direction:column;gap:12px;min-width:0}
 .zcol .zone{flex:1 1 0}
 .z-notes{display:flex;flex-direction:column}
@@ -108,7 +109,7 @@ button.sm{padding:6px 10px;font-size:14px}
    user who may see it. */
 
 const ITER = 600000, LOCK_MS = 5 * 60 * 1000, CLIP_MS = 30000, MAX_HIST = 30, GENERAL = "general";
-const FIELDS = { title: "title", url: "URL", user: "username", pass: "password", notes: "notes", cat: "category", tags: "tags" };
+const FIELDS = { title: "title", url: "URL", user: "username", reg: "registered email", pass: "password", notes: "notes", cat: "category", tags: "tags" };
 const LEGACY = { "creat": "created", "șters": "deleted", "acces": "access", "titlu": "title", "adresă": "URL", "utilizator": "username", "parolă": "password", "note": "notes", "categorie": "category", "tag-uri": "tags" };
 const RSA = { name: "RSA-OAEP", hash: "SHA-256" };
 
@@ -125,6 +126,7 @@ const P = {
   refresh: '<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
   menu: '<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
   lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  mail: '<path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><polyline points="22,6 12,13 2,6"/>',
   globe: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
   note: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -209,7 +211,7 @@ function visible() {
 function matches(e, q) {
   const toks = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const d = e.d, tags = (d.tags || []).map(t => t.toLowerCase());
-  const hay = [d.title, d.user, d.url, d.notes, catName(catOf(d)), ...(d.tags || [])].join("\n").toLowerCase();
+  const hay = [d.title, d.user, d.reg, d.url, d.notes, catName(catOf(d)), ...(d.tags || [])].join("\n").toLowerCase();
   return toks.every(t => t[0] === "#" ? (t.length === 1 || tags.some(x => x.startsWith(t.slice(1)))) : hay.includes(t));
 }
 function parseRaw(t) {
@@ -648,6 +650,7 @@ function renderList() {
     const url = d.url ? (/^https?:/i.test(d.url) ? d.url : "https://" + d.url) : "";
     const detail = !o ? "" : `<div class="c-d"><div class="zones"><div class="zcol">
         <div class="zone z-web"><div class="zh">${ic("globe")} Website</div><div class="zb">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(d.url)} ${ic("ext", 14)}</a>` : '<span class="none">No website</span>'}</div></div>
+        ${d.reg ? `<div class="zone z-reg"><div class="zh">${ic("mail")} Registered email</div><div class="zb regb"><span class="nw" title="${esc(d.reg)}">${esc(d.reg)}</span>${ico("copy", "cr", "Copy registered email")}</div></div>` : ""}
         <div class="zone z-tag"><div class="zh">${ic("tag")} Tags</div><div class="ztags">${tags.length ? tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}" title="Search this tag">#${esc(t)}</button>`).join("") : '<span class="none">No tags</span>'}</div></div></div>
         <div class="zone z-notes"><div class="zh">${ic("note")} Notes</div><div class="zb">${d.notes ? esc(d.notes) : '<span class="none">No notes</span>'}</div></div>
         <div class="zone acc z-acc"><div class="zh">${ic("users")} Access</div>${isAdmin()
@@ -682,6 +685,7 @@ document.addEventListener("click", async ev => {
   else if (act === "show") { S.shown[e.id] = !S.shown[e.id]; renderList(); }
   else if (act === "hist") { S.hist = S.hist === e.id ? null : e.id; renderList(); }
   else if (act === "cu") copy(e.d.user, "Username copied");
+  else if (act === "cr") copy(e.d.reg, "Email copied");
   else if (act === "cp") copy(e.d.pass, "Password copied (cleared in 30 s)", true);
   else if (act === "edit" && canEdit(e)) openEdit(e);
   else if (act === "del" && canEdit(e)) { if (confirm(`Delete "${e.d.title}"?`)) { await delEntry(e); renderList(); } }
@@ -706,6 +710,12 @@ function genPass(n = 20) {
 const parseTags = s => { const seen = new Set(), out = []; for (const t of s.split(",").map(x => x.trim().replace(/^#/, "")).filter(Boolean)) { if (!seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); } } return out; };
 
 /* ---------- add / edit entry ---------- */
+function suggestions(field) { // previously used values of a field, most frequent first (computed from the entries you can see; stored nowhere)
+  const n = new Map();
+  for (const e of visible()) { const r = String(e.d[field] || "").trim(); if (r) { const k = r.toLowerCase(), o = n.get(k) || { r, c: 0 }; o.c++; n.set(k, o); } }
+  return [...n.values()].sort((a, b) => b.c - a.c || cmp(a.r, b.r)).map(o => o.r);
+}
+const regSuggestions = () => suggestions("reg");
 function openEdit(e) {
   const d = e ? e.d : {};
   const o = modal(`<h1>${e ? "Edit entry" : "Add entry"}</h1>
@@ -713,7 +723,10 @@ function openEdit(e) {
   <label>Category</label><select id="f_cat">${catList().map(c => `<option value="${esc(c.id)}"${c.id === (e ? catOf(d) : (S.cat || GENERAL)) ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
   <label>Tags (comma separated)</label><input id="f_tags" value="${esc((d.tags || []).join(", "))}" autocomplete="off" autocapitalize="off">
   <label>URL (optional)</label><input id="f_url" value="${esc(d.url)}">
-  <label>Username</label><input id="f_u" value="${esc(d.user)}" autocomplete="off">
+  <label>Registered email</label><input id="f_r" list="f_rl" placeholder="Email used to sign up for this account" value="${esc(d.reg)}" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <datalist id="f_rl">${suggestions("reg").map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist>
+  <label>Username</label><input id="f_u" list="f_ul" value="${esc(d.user)}" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <datalist id="f_ul">${suggestions("user").map(x => `<option value="${esc(x)}"></option>`).join("")}</datalist>
   <label>Password</label><div class="row"><input id="f_p" value="${esc(d.pass)}" autocomplete="off"><button class="sec" id="f_g" type="button">Generate</button></div>
   <label style="display:block;margin-top:10px">Notes</label><textarea id="f_n" rows="3">${esc(d.notes)}</textarea>
   <div class="err" id="f_e"></div>
@@ -722,7 +735,7 @@ function openEdit(e) {
   $("#f_c").onclick = () => o.remove();
   $("#f_s").onclick = async () => {
     const t = $("#f_t").value.trim(); if (!t) return $("#f_t").focus();
-    const f = { title: t, cat: $("#f_cat").value, tags: parseTags($("#f_tags").value), url: $("#f_url").value.trim(), user: $("#f_u").value, pass: $("#f_p").value, notes: $("#f_n").value };
+    const f = { title: t, cat: $("#f_cat").value, tags: parseTags($("#f_tags").value), url: $("#f_url").value.trim(), user: $("#f_u").value, reg: $("#f_r").value.trim(), pass: $("#f_p").value, notes: $("#f_n").value };
     $("#f_s").disabled = true;
     try { await saveEntry(e, f); o.remove(); renderList(); } catch (er) { console.error(er); $("#f_e").textContent = "Error while saving."; $("#f_s").disabled = false; }
   };
@@ -860,9 +873,9 @@ function openConn() {
 /* ---------- CSV export ---------- */
 function buildCsv(sep) {
   const adm = isAdmin();
-  const head = ["category", "tags", "title", "url", "username", "password", "notes", "created_by", "created_at", "modified_by", "modified_at", ...(adm ? ["visible_to"] : [])];
+  const head = ["category", "tags", "title", "url", "username", "registered_email", "password", "notes", "created_by", "created_at", "modified_by", "modified_at", ...(adm ? ["visible_to"] : [])];
   const rows = visible().sort((a, b) => cmp(catName(catOf(a.d)), catName(catOf(b.d))) || cmp(a.d.title || "", b.d.title || ""))
-    .map(e => { const d = e.d; return [catName(catOf(d)), (d.tags || []).join(" "), d.title, d.url, d.user, d.pass, d.notes, dispName(d.createdById, d.createdBy), isoLocal(d.created), dispName(d.updatedById, d.updatedBy), isoLocal(d.updated),
+    .map(e => { const d = e.d; return [catName(catOf(d)), (d.tags || []).join(" "), d.title, d.url, d.user, d.reg || "", d.pass, d.notes, dispName(d.createdById, d.createdBy), isoLocal(d.created), dispName(d.updatedById, d.updatedBy), isoLocal(d.updated),
       ...(adm ? [Object.keys(e.rec.k).map(i => (userById(i) || { name: "?" }).name).join(" / ")] : [])]; });
   const cell = v => { const s = String(v ?? ""); return (s.includes(sep) || /["\r\n]/.test(s)) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   return "﻿" + [head, ...rows].map(r => r.map(cell).join(sep)).join("\r\n") + "\r\n";
