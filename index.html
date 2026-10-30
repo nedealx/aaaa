@@ -80,7 +80,10 @@ button.sm{padding:6px 10px;font-size:14px}
 .zb{word-break:break-word;white-space:pre-wrap}
 .zone a{display:inline-flex;align-items:center;gap:6px;word-break:break-all}
 .none{color:var(--mut)}
-.acc label{display:flex;align-items:center;font-size:14px;color:var(--tx);margin:6px 0}
+.acc{display:flex;flex-direction:column}
+.accl{column-count:2;column-gap:14px}
+.acc label{display:flex;align-items:center;font-size:14px;color:var(--tx);margin:0 0 8px;min-width:0;break-inside:avoid}
+.accb{margin-top:auto;padding-top:8px;align-self:flex-end}
 .foot{margin-top:10px;font-size:13px;color:var(--mut);display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
 .foot a{display:inline-flex;align-items:center;gap:6px;color:var(--tx);cursor:pointer}
 .hist{font-size:13px;color:var(--mut);margin-top:8px}
@@ -182,10 +185,15 @@ function checkUnique(name, email, exceptId) {
   if (live.some(u => (u.email || "").toLowerCase() === email.toLowerCase())) throw new Error("A user with this email already exists.");
 }
 const userById = id => S.raw.users.find(u => u.id === id);
+function dispName(id, str) {   // current profile name; legacy records that stored an email map back to the user's name
+  const u = id && userById(id); if (u) return u.name;
+  const m = str && S.raw.users.find(x => (x.email || "").toLowerCase() === String(str).toLowerCase());
+  return m ? m.name : (str || "—");
+}
 const me = () => S.raw && S.raw.users.find(u => u.id === S.meId && !u.del);
 const isAdmin = () => { const m = me(); return !!m && m.role === "admin"; };
 const admins = () => S.raw.users.filter(u => u.role === "admin" && !u.del);
-const members = () => S.raw.users.filter(u => u.role !== "admin" && !u.del);
+const members = () => S.raw.users.filter(u => u.role !== "admin" && !u.del).sort((a, b) => cmp(a.name, b.name));
 const accessFor = id => [...new Set([id, ...admins().map(a => a.id)])];
 const canEdit = e => isAdmin() || e.d.createdById === S.meId;
 function catList() {
@@ -283,12 +291,12 @@ async function saveEntry(ex, f) {
     const d = ex.d, old = { ...d, cat: catOf(d), tags: d.tags || [] };
     const ch = Object.keys(FIELDS).filter(k => !same(old[k], f[k]));
     if (!ch.length) return false;
-    const nd = { ...d, ...f, updated: now, updatedBy: m.name, history: [...(d.history || []), { t: now, by: m.name, f: ch.map(k => FIELDS[k]) }].slice(-MAX_HIST) };
+    const nd = { ...d, ...f, updated: now, updatedBy: m.name, updatedById: m.id, history: [...(d.history || []), { t: now, by: m.name, byId: m.id, f: ch.map(k => FIELDS[k]) }].slice(-MAX_HIST) };
     replaceRec(await seal(ex.id, nd, ex.p.dek, null, now, ex.rec.k));
     S.plain.set(ex.id, { u: now, dek: ex.p.dek, data: nd });
   } else {
     const dek = await newDek(), id = uid();
-    const nd = { ...f, created: now, createdBy: m.name, createdById: m.id, updated: now, updatedBy: m.name, history: [{ t: now, by: m.name, f: ["created"] }] };
+    const nd = { ...f, created: now, createdBy: m.name, createdById: m.id, updated: now, updatedBy: m.name, updatedById: m.id, history: [{ t: now, by: m.name, byId: m.id, f: ["created"] }] };
     replaceRec(await seal(id, nd, dek, accessFor(m.id), now));
     S.plain.set(id, { u: now, dek, data: nd });
   }
@@ -301,7 +309,7 @@ async function delEntry(e) {
 async function applyAccess(e, ids) {
   const now = Date.now(), m = me(), dek = await newDek();
   const all = [...new Set([...ids, ...admins().map(a => a.id)])];
-  const nd = { ...e.d, updated: now, updatedBy: m.name, history: [...(e.d.history || []), { t: now, by: m.name, f: ["access"] }].slice(-MAX_HIST) };
+  const nd = { ...e.d, updated: now, updatedBy: m.name, updatedById: m.id, history: [...(e.d.history || []), { t: now, by: m.name, byId: m.id, f: ["access"] }].slice(-MAX_HIST) };
   replaceRec(await seal(e.id, nd, dek, all, now));
   S.plain.set(e.id, { u: now, dek, data: nd }); await save();
 }
@@ -594,16 +602,16 @@ function renderList() {
   const mems = members(), arrow = k => S.sort.k === k ? (S.sort.d > 0 ? " ▲" : " ▼") : "";
   const rows = items.map(e => {
     const d = e.d, o = S.open === e.id, tags = d.tags || [], cn = catName(catOf(d)), sh = !!S.shown[e.id];
-    const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).map(x => LEGACY[x] || x).join(", "))}`).join("<br>") || "No history.";
+    const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(dispName(h.byId, h.by))} · ${esc((h.f || []).map(x => LEGACY[x] || x).join(", "))}`).join("<br>") || "No history.";
     const url = d.url ? (/^https?:/i.test(d.url) ? d.url : "https://" + d.url) : "";
     const detail = !o ? "" : `<div class="c-d"><div class="zones"><div class="zcol">
         <div class="zone z-web"><div class="zh">${ic("globe")} Website</div><div class="zb">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(d.url)} ${ic("ext", 14)}</a>` : '<span class="none">No website</span>'}</div></div>
         <div class="zone z-tag"><div class="zh">${ic("tag")} Tags</div><div class="ztags">${tags.length ? tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}" title="Search this tag">#${esc(t)}</button>`).join("") : '<span class="none">No tags</span>'}</div></div></div>
         <div class="zone z-notes"><div class="zh">${ic("note")} Notes</div><div class="zb">${d.notes ? esc(d.notes) : '<span class="none">No notes</span>'}</div></div>
         <div class="zone acc z-acc"><div class="zh">${ic("users")} Access</div>${isAdmin()
-          ? (mems.length ? `<div class="meta">Visible to:</div>${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}>${esc(u.name)}</label>`).join("")}<button class="sm sec" data-act="acc">Apply access</button>` : '<span class="none">No members yet.</span>')
+          ? (mems.length ? `<div class="accl">${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}><span class="nw">${esc(u.name)}</span></label>`).join("")}</div><div class="accb"><button class="sm sec" data-act="acc">Add visibility access</button></div>` : '<span class="none">No members yet.</span>')
           : '<span class="none">Managed by an admin.</span>'}</div></div>
-      <div class="foot"><span>Created by <b>${esc(d.createdBy || "—")}</b>, ${esc(fmt(d.created))}</span><span>Modified by <b>${esc(d.updatedBy || "—")}</b>, ${esc(fmt(d.updated))}</span>
+      <div class="foot"><span>Created by <b>${esc(dispName(d.createdById, d.createdBy))}</b>, ${esc(fmt(d.created))}</span><span>Modified by <b>${esc(dispName(d.updatedById, d.updatedBy))}</b>, ${esc(fmt(d.updated))}</span>
         <a data-act="hist">${ic("clock", 14)} ${S.hist === e.id ? "Hide history" : "History"}</a></div>
       ${S.hist === e.id ? `<div class="hist">${hist}</div>` : ""}</div>`;
     return `<div class="li" data-id="${e.id}">
@@ -811,7 +819,7 @@ function buildCsv(sep) {
   const adm = isAdmin();
   const head = ["category", "tags", "title", "url", "username", "password", "notes", "created_by", "created_at", "modified_by", "modified_at", ...(adm ? ["visible_to"] : [])];
   const rows = visible().sort((a, b) => cmp(catName(catOf(a.d)), catName(catOf(b.d))) || cmp(a.d.title || "", b.d.title || ""))
-    .map(e => { const d = e.d; return [catName(catOf(d)), (d.tags || []).join(" "), d.title, d.url, d.user, d.pass, d.notes, d.createdBy, isoLocal(d.created), d.updatedBy, isoLocal(d.updated),
+    .map(e => { const d = e.d; return [catName(catOf(d)), (d.tags || []).join(" "), d.title, d.url, d.user, d.pass, d.notes, dispName(d.createdById, d.createdBy), isoLocal(d.created), dispName(d.updatedById, d.updatedBy), isoLocal(d.updated),
       ...(adm ? [Object.keys(e.rec.k).map(i => (userById(i) || { name: "?" }).name).join(" / ")] : [])]; });
   const cell = v => { const s = String(v ?? ""); return (s.includes(sep) || /["\r\n]/.test(s)) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   return "﻿" + [head, ...rows].map(r => r.map(cell).join(sep)).join("\r\n") + "\r\n";
