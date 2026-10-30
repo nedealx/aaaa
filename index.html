@@ -32,6 +32,10 @@ button.sm{padding:6px 10px;font-size:14px}
 .menu button{width:100%;margin:6px 0;justify-content:flex-start}
 .row{display:flex;gap:8px;align-items:center}
 .row>input{margin:0}
+.sw{position:relative;flex:1;min-width:0}
+.sw input{margin:0;padding-right:36px}
+.clr{display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%)}
+.sw.has .clr,.sw input:not(:placeholder-shown)~.clr{display:inline-flex}
 .bar{position:sticky;top:0;background:var(--bg);padding:10px 0 4px;z-index:5}
 .chips{display:flex;gap:6px;overflow-x:auto;padding:8px 0;scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
@@ -51,7 +55,7 @@ button.sm{padding:6px 10px;font-size:14px}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:8px 16px;border-radius:20px;font-size:14px;z-index:30}
 /* list */
 .lst{background:var(--card);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
-.lh,.li{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr) minmax(0,2fr) minmax(0,1.5fr) minmax(0,1.6fr) 118px;column-gap:14px;align-items:center}
+.lh,.li{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.4fr) minmax(0,2.2fr) minmax(0,1.8fr) 118px;column-gap:14px;align-items:center}
 .lh{padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--bd);user-select:none;text-transform:uppercase;letter-spacing:.04em}
 .lh>div[data-act]{cursor:pointer}
 .lh>div[data-act]:hover{color:var(--tx)}
@@ -63,10 +67,14 @@ button.sm{padding:6px 10px;font-size:14px}
 .c-u,.c-p{display:flex;align-items:center;gap:2px;min-width:0;flex-wrap:nowrap}
 .c-u .un,.c-p .pw{flex:0 1 auto}
 .pw{font-family:ui-monospace,Menlo,Consolas,monospace}
-.c-g{display:flex;flex-wrap:nowrap;gap:4px;overflow:hidden;min-width:0;-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 22px),transparent)}
+.ztags{display:flex;flex-wrap:wrap;gap:6px}
 .c-a{display:flex;gap:4px;justify-content:flex-end}
 .c-d{grid-column:1/-1;margin-top:12px}
-.zones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.zones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch}
+.zcol{display:flex;flex-direction:column;gap:12px;min-width:0}
+.zcol .zone{flex:1 1 0}
+.z-notes{display:flex;flex-direction:column}
+.z-notes .zb{flex:1 1 auto;min-height:0;max-height:320px;overflow:auto}
 .zone{border:1px solid var(--bd);border-radius:8px;padding:12px;min-width:0}
 .zh{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
 .zb{word-break:break-word;white-space:pre-wrap}
@@ -76,14 +84,14 @@ button.sm{padding:6px 10px;font-size:14px}
 .foot{margin-top:10px;font-size:13px;color:var(--mut);display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center}
 .foot a{display:inline-flex;align-items:center;gap:6px;color:var(--tx);cursor:pointer}
 .hist{font-size:13px;color:var(--mut);margin-top:8px}
-.mob,.sm-only{display:none}
+.sm-only{display:none}
 @media(max-width:700px){
-  .lh,.hm{display:none}.sm-only{display:inline-block}.mob{display:block}
-  .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u" "p p" "g g";row-gap:4px}
-  .li .c-t{grid-area:t}.li .c-a{grid-area:a}.li .c-g{grid-area:g}
+  .lh,.hm{display:none}.sm-only{display:inline-block}
+  .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u" "p p";row-gap:4px}
+  .li .c-t{grid-area:t}.li .c-a{grid-area:a}
   .li .c-u{grid-area:u;font-size:14px;color:var(--mut)}.li .c-p{grid-area:p;font-size:14px}
-  .li .c-g:empty{display:none}
   .zones{grid-template-columns:1fr}
+  .zcol .zone{flex:none}
 }
 </style>
 </head>
@@ -118,6 +126,8 @@ const P = {
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
   ext: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+  tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'
 };
 const ic = (n, s = 16) => `<svg class="ic" viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
@@ -165,6 +175,12 @@ async function pubOf(u) {
 async function wrapFor(u, rawDek) { return b64(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, await pubOf(u), rawDek)); }
 
 /* ---------- data model ---------- */
+const isEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+function checkUnique(name, email, exceptId) {
+  const live = S.raw.users.filter(u => !u.del && u.id !== exceptId);
+  if (live.some(u => u.name.toLowerCase() === name.toLowerCase())) throw new Error("A user with this name already exists.");
+  if (live.some(u => (u.email || "").toLowerCase() === email.toLowerCase())) throw new Error("A user with this email already exists.");
+}
 const userById = id => S.raw.users.find(u => u.id === id);
 const me = () => S.raw && S.raw.users.find(u => u.id === S.meId && !u.del);
 const isAdmin = () => { const m = me(); return !!m && m.role === "admin"; };
@@ -228,9 +244,9 @@ async function syncPlain() {
 function replaceRec(rec) { const i = S.raw.entries.findIndex(r => r.id === rec.id); if (i >= 0) S.raw.entries[i] = rec; else S.raw.entries.push(rec); }
 const same = (a, b) => JSON.stringify(a ?? "") === JSON.stringify(b ?? "");
 
-async function createVault(name, pw) {
+async function createVault(name, email, pw) {
   const now = Date.now(), k = await newUserKeys(pw), rk = rnd(32);
-  const admin = { id: uid(), name: name.trim(), role: "admin", pub: k.pub, w: k.w, rec: await aesSeal(await rawKey(rk), k.pkcs8), u: now };
+  const admin = { id: uid(), name: name.trim(), email: email.trim(), role: "admin", pub: k.pub, w: k.w, rec: await aesSeal(await rawKey(rk), k.pkcs8), u: now };
   S.raw = { v: 2, users: [admin], cats: [{ id: GENERAL, name: "General", u: now }], entries: [] };
   S.meId = admin.id; S.plain = new Map();
   S.priv = await crypto.subtle.importKey("pkcs8", k.pkcs8, RSA, false, ["decrypt"]);
@@ -238,7 +254,8 @@ async function createVault(name, pw) {
   return [...rk].map(b => b.toString(16).padStart(2, "0")).join("").replace(/(.{8})(?=.)/g, "$1-");
 }
 async function doLogin(name, pw) {
-  const u = S.raw.users.find(x => !x.del && x.name.toLowerCase() === name.trim().toLowerCase());
+  const q = name.trim().toLowerCase(), live = S.raw.users.filter(x => !x.del);
+  const u = live.find(x => x.name.toLowerCase() === q) || live.find(x => (x.email || "").toLowerCase() === q);
   if (!u) throw new Error("login");
   const pkcs8 = await unwrapPw(u.w, pw);
   S.priv = await crypto.subtle.importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
@@ -288,13 +305,23 @@ async function applyAccess(e, ids) {
   replaceRec(await seal(e.id, nd, dek, all, now));
   S.plain.set(e.id, { u: now, dek, data: nd }); await save();
 }
-async function addUser(name, pw) {
-  name = name.trim();
+async function addUser(name, email, pw) {
+  name = name.trim(); email = email.trim();
   if (!name) throw new Error("Enter a name.");
+  if (!isEmail(email)) throw new Error("Enter a valid email address.");
   if (pw.length < 8) throw new Error("Initial password: at least 8 characters.");
-  if (S.raw.users.some(u => !u.del && u.name.toLowerCase() === name.toLowerCase())) throw new Error("A user with this name already exists.");
+  checkUnique(name, email);
   const k = await newUserKeys(pw);
-  S.raw.users.push({ id: uid(), name, role: "member", pub: k.pub, w: k.w, u: Date.now() });
+  S.raw.users.push({ id: uid(), name, email, role: "member", pub: k.pub, w: k.w, u: Date.now() });
+  await save();
+}
+async function updateProfile(id, name, email) {
+  if (!isAdmin() && id !== S.meId) throw new Error("Not allowed.");
+  name = name.trim(); email = email.trim();
+  if (!name) throw new Error("Enter a name.");
+  if (!isEmail(email)) throw new Error("Enter a valid email address.");
+  checkUnique(name, email, id);
+  const u = userById(id); u.name = name; u.email = email; u.u = Date.now();
   await save();
 }
 async function resetUser(id, pw) {
@@ -469,18 +496,20 @@ function viewSetup(oldFmt) {
   app().innerHTML = `<div class="center box"><h1>Create the vault</h1>
   <p class="meta">You are creating the <b>admin</b> account. You add the other users afterwards.</p>
   ${oldFmt ? '<p class="warn">The repo contains a vault in the old format. If you continue, it will be replaced. Export your real passwords first, using the old version.</p>' : ""}
-  <label>Admin name</label><input id="s_n" autocomplete="username" maxlength="30">
+  <label>Admin name (shown in the app)</label><input id="s_n" autocomplete="name" maxlength="30">
+  <label>Admin email</label><input id="s_e" type="email" autocomplete="email" autocapitalize="off">
   <label>Password (at least 10 characters)</label><input id="p1" type="password" autocomplete="new-password">
   <label>Repeat password</label><input id="p2" type="password" autocomplete="new-password">
   <div class="err" id="err"></div><button id="go">Create</button></div>`;
   $("#go").onclick = async () => {
-    const n = $("#s_n").value.trim(), a = $("#p1").value, b = $("#p2").value;
+    const n = $("#s_n").value.trim(), em = $("#s_e").value.trim(), a = $("#p1").value, b = $("#p2").value;
     if (!n) return $("#err").textContent = "Enter a name.";
+    if (!isEmail(em)) return $("#err").textContent = "Enter a valid email address.";
     if (a.length < 10) return $("#err").textContent = "Password: at least 10 characters.";
     if (a !== b) return $("#err").textContent = "Passwords do not match.";
     if (oldFmt && !confirm("The old vault in the repo will be replaced. Continue?")) return;
     $("#go").disabled = true; $("#go").textContent = "Creating…";
-    try { const hex = await createVault(n, a); localStorage.setItem("vault_last", n); viewRecovery(hex); }
+    try { const hex = await createVault(n, em, a); localStorage.setItem("vault_last", n); viewRecovery(hex); }
     catch (e) { console.error(e); $("#err").textContent = "Error while creating."; $("#go").disabled = false; $("#go").textContent = "Create"; }
   };
 }
@@ -493,7 +522,7 @@ function viewRecovery(hex) {
 }
 function viewLogin(msg) {
   app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1>
-  <label>Name</label><input id="l_n" value="${esc(localStorage.getItem("vault_last") || "")}" autocomplete="username" autocapitalize="off">
+  <label>Name or email</label><input id="l_n" value="${esc(localStorage.getItem("vault_last") || "")}" autocomplete="username" autocapitalize="off">
   <label>Password</label><input id="l_p" type="password" autocomplete="current-password">
   <div class="err" id="err">${esc(msg || "")}</div><button id="go">Sign in</button>
   <p class="st">${S.online ? "" : "Offline – using the local copy"}</p>
@@ -519,21 +548,23 @@ function logout(msg) {
 /* ---------- main screen ---------- */
 function viewMain() {
   app().innerHTML = `<div class="wrap"><div class="bar"><div class="row">
-    <input id="q" placeholder="Search by title, username or tag…" autocomplete="off">
+    <div class="sw"><input id="q" placeholder="Search…" autocomplete="off"><button class="ico clr" data-act="clr" title="Clear search" aria-label="Clear search">${ic("x", 16)}</button></div>
     <button class="ib" id="add" title="Add entry" aria-label="Add entry">${ic("plus")}</button>
     <button class="ib sec" id="sync" title="Sync" aria-label="Sync">${ic("refresh")}</button>
     <button class="ib sec" data-act="menu" title="Menu" aria-label="Menu">${ic("menu")}</button>
     <button class="ib sec" id="lock" title="Lock" aria-label="Lock">${ic("lock")}</button></div>
     <div class="chips" id="chips"></div></div>
     <div id="list"></div><div class="st" id="st"></div>
-    <div class="st">${ic("user", 14)} ${esc(me().name)} · ${isAdmin() ? "admin" : "member"}</div></div>`;
-  $("#q").value = S.q;
-  $("#q").oninput = e => { S.q = e.target.value; renderList(); };
+    <div class="st" id="who">${ic("user", 14)} ${esc(me().name)} · ${isAdmin() ? "admin" : "member"}</div></div>`;
+  syncQ();
+  $("#q").oninput = e => { S.q = e.target.value; syncQ(); renderList(); };
+  $("#q").onkeydown = e => { if (e.key === "Escape" && S.q) { S.q = ""; syncQ(); renderList(); } };
   $("#add").onclick = () => openEdit(null);
   $("#sync").onclick = refresh;
   $("#lock").onclick = () => logout();
   renderList(); refresh(); armLock();
 }
+function syncQ() { const q = $("#q"); if (!q) return; q.value = S.q; q.closest(".sw").classList.toggle("has", !!S.q); }
 function renderChips() {
   const el = $("#chips"); if (!el) return;
   const ents = visible(), m = new Map();
@@ -565,10 +596,11 @@ function renderList() {
     const d = e.d, o = S.open === e.id, tags = d.tags || [], cn = catName(catOf(d)), sh = !!S.shown[e.id];
     const hist = (d.history || []).slice().reverse().map(h => `${esc(fmt(h.t))} · ${esc(h.by)} · ${esc((h.f || []).map(x => LEGACY[x] || x).join(", "))}`).join("<br>") || "No history.";
     const url = d.url ? (/^https?:/i.test(d.url) ? d.url : "https://" + d.url) : "";
-    const detail = !o ? "" : `<div class="c-d"><div class="zones">
-        <div class="zone"><div class="zh">${ic("globe")} Website</div><div class="zb">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(d.url)} ${ic("ext", 14)}</a>` : '<span class="none">No website</span>'}</div></div>
-        <div class="zone"><div class="zh">${ic("note")} Notes</div><div class="zb">${d.notes ? esc(d.notes) : '<span class="none">No notes</span>'}</div></div>
-        <div class="zone acc"><div class="zh">${ic("users")} Access</div>${isAdmin()
+    const detail = !o ? "" : `<div class="c-d"><div class="zones"><div class="zcol">
+        <div class="zone z-web"><div class="zh">${ic("globe")} Website</div><div class="zb">${url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(d.url)} ${ic("ext", 14)}</a>` : '<span class="none">No website</span>'}</div></div>
+        <div class="zone z-tag"><div class="zh">${ic("tag")} Tags</div><div class="ztags">${tags.length ? tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}" title="Search this tag">#${esc(t)}</button>`).join("") : '<span class="none">No tags</span>'}</div></div></div>
+        <div class="zone z-notes"><div class="zh">${ic("note")} Notes</div><div class="zb">${d.notes ? esc(d.notes) : '<span class="none">No notes</span>'}</div></div>
+        <div class="zone acc z-acc"><div class="zh">${ic("users")} Access</div>${isAdmin()
           ? (mems.length ? `<div class="meta">Visible to:</div>${mems.map(u => `<label><input type="checkbox" data-uid="${u.id}" ${e.rec.k[u.id] ? "checked" : ""}>${esc(u.name)}</label>`).join("")}<button class="sm sec" data-act="acc">Apply access</button>` : '<span class="none">No members yet.</span>')
           : '<span class="none">Managed by an admin.</span>'}</div></div>
       <div class="foot"><span>Created by <b>${esc(d.createdBy || "—")}</b>, ${esc(fmt(d.created))}</span><span>Modified by <b>${esc(d.updatedBy || "—")}</b>, ${esc(fmt(d.updated))}</span>
@@ -579,13 +611,10 @@ function renderList() {
       <div class="c-t nw"><span class="t" data-act="toggle" title="${esc(d.title)}">${esc(d.title)}</span><span class="sm-only tag" style="margin-left:6px">${esc(cn)}</span></div>
       <div class="c-u"><span class="un nw" title="${esc(d.user)}">${esc(d.user)}</span>${d.user ? ico("copy", "cu", "Copy username") : ""}</div>
       <div class="c-p"><span class="pw nw">${sh ? esc(d.pass) : "••••••••"}</span>${ico(sh ? "eye-off" : "eye", "show", sh ? "Hide password" : "Show password")}${ico("copy", "cp", "Copy password")}</div>
-      <div class="c-g" title="${esc(tags.map(t => "#" + t).join(" "))}">${tags.map(t => `<button class="pill" data-act="tag" data-t="${esc(t)}">#${esc(t)}</button>`).join("")}</div>
       <div class="c-a">${canEdit(e) ? ibtn("edit", "edit", "Edit") + ibtn("trash", "del", "Delete") : ""}${ibtn(o ? "up" : "down", "toggle", o ? "Collapse" : "Expand")}</div>
       ${detail}</div>`;
   }).join("");
-  const opt = (v, l) => `<option value="${v}"${v === S.sort.k + "|" + S.sort.d ? " selected" : ""}>${l}</option>`;
-  el.innerHTML = `<select id="sortSel" class="mob">${opt("title|1", "Sort: title A–Z")}${opt("user|1", "Sort: username")}${opt("cat|1", "Sort: category")}${opt("updated|-1", "Sort: recently modified")}</select>
-    <div class="lst"><div class="lh"><div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div><div>Tags</div><div></div></div>${rows}</div>
+  el.innerHTML = `<div class="lst"><div class="lh"><div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div><div></div></div>${rows}</div>
     <div class="st">${items.length} ${items.length === 1 ? "entry" : "entries"}</div>`;
 }
 document.addEventListener("click", async ev => {
@@ -593,7 +622,8 @@ document.addEventListener("click", async ev => {
   if (b.tagName === "A") ev.preventDefault();
   const act = b.dataset.act;
   if (act === "chip") { S.cat = b.dataset.v; return renderList(); }
-  if (act === "tag") { S.q = b.dataset.t; const q = $("#q"); if (q) q.value = S.q; return renderList(); }
+  if (act === "tag") { S.q = b.dataset.t; syncQ(); return renderList(); }
+  if (act === "clr") { S.q = ""; syncQ(); renderList(); const q = $("#q"); if (q) q.focus(); return; }
   if (act === "menu") return openMenu();
   if (act === "sort") { const k = b.dataset.k; S.sort = S.sort.k === k ? { k, d: -S.sort.d } : { k, d: k === "updated" ? -1 : 1 }; return renderList(); }
   const card = b.closest("[data-id]"); const e = card && visible().find(x => x.id === card.dataset.id);
@@ -611,7 +641,6 @@ document.addEventListener("click", async ev => {
     renderList();
   }
 });
-document.addEventListener("change", e => { if (e.target && e.target.id === "sortSel") { const [k, d] = e.target.value.split("|"); S.sort = { k, d: +d }; renderList(); } });
 async function copy(t, msg, clear) {
   try { await navigator.clipboard.writeText(t || ""); toast(msg); } catch (e) { toast("Could not copy"); return; }
   if (clear) setTimeout(() => navigator.clipboard.writeText(" ").catch(() => {}), CLIP_MS);
@@ -653,12 +682,13 @@ function openEdit(e) {
 /* ---------- menu ---------- */
 function openMenu() {
   const o = modal(`<h1>${ic("user", 18)} ${esc(me().name)} <span class="meta">${isAdmin() ? "admin" : "member"}</span></h1><div class="menu">
+    <button class="sec" id="m_pf">My profile</button>
     <button class="sec" id="m_pw">Change my password</button>
     <button class="sec" id="m_ex">Export CSV</button>
     ${isAdmin() ? `<button class="sec" id="m_us">Users</button><button class="sec" id="m_ct">Categories</button><button class="sec" id="m_cn">GitHub connection</button>` : ""}
     <button class="sec" id="m_lo">Sign out</button><button class="sec" id="m_x">Close</button></div>`);
   const go = (id, fn) => { $(id).onclick = () => { o.remove(); fn(); }; };
-  go("#m_pw", openChangePw); go("#m_ex", openExport); go("#m_lo", () => logout());
+  go("#m_pf", () => openProfile(S.meId)); go("#m_pw", openChangePw); go("#m_ex", openExport); go("#m_lo", () => logout());
   if (isAdmin()) { go("#m_us", openUsers); go("#m_ct", openCats); go("#m_cn", openConn); }
   $("#m_x").onclick = () => o.remove();
 }
@@ -679,6 +709,21 @@ function openChangePw() {
     await changePw($("#w_o").value, $("#w_n").value); o.remove(); toast("Password changed");
   });
 }
+function openProfile(id) {
+  const u = userById(id), self = id === S.meId;
+  const o = modal(`<h1>${self ? "My profile" : "Edit user"}</h1>
+  <label>Name (shown in the app)</label><input id="u_n" value="${esc(u.name)}" maxlength="30" autocomplete="off">
+  <label>Email</label><input id="u_e" type="email" value="${esc(u.email)}" autocomplete="off" autocapitalize="off">
+  <p class="meta">Only the name is shown in the app. The email is visible only to admins and in the profile, and can also be used to sign in.</p>
+  <div class="err" id="u_x"></div><div class="row"><button id="u_s">Save</button><button class="sec" id="u_c">Cancel</button></div>`);
+  $("#u_c").onclick = () => { o.remove(); if (!self) openUsers(); };
+  $("#u_s").onclick = () => busy($("#u_s"), $("#u_x"), async () => {
+    await updateProfile(id, $("#u_n").value, $("#u_e").value);
+    o.remove(); toast("Profile saved");
+    if (self) { localStorage.setItem("vault_last", me().name); const w = $("#who"); if (w) w.innerHTML = `${ic("user", 14)} ${esc(me().name)} · ${isAdmin() ? "admin" : "member"}`; }
+    renderList(); if (!self) openUsers();
+  });
+}
 function openRecover() {
   const o = modal(`<h1>Admin recovery</h1>
   <p class="meta">Enter the recovery key you wrote down when the vault was created and choose a new admin password.</p>
@@ -693,19 +738,21 @@ function openRecover() {
 }
 function openUsers() {
   const o = modal(`<h1>Users</h1>
-  ${members().map(u => `<div class="zone" style="margin-bottom:8px"><b>${esc(u.name)}</b> <span class="meta">member</span>
-    <div class="row" style="margin-top:8px"><button class="sm sec" data-r="${u.id}">Reset password</button><button class="sm sec" data-d="${u.id}">Delete</button></div></div>`).join("") || '<div class="st">No members yet.</div>'}
+  ${members().map(u => `<div class="zone" style="margin-bottom:8px"><b>${esc(u.name)}</b> <span class="meta">member</span><div class="meta">${esc(u.email || "no email")}</div>
+    <div class="row" style="margin-top:8px"><button class="sm sec" data-pf="${u.id}">Edit</button><button class="sm sec" data-r="${u.id}">Reset password</button><button class="sm sec" data-d="${u.id}">Delete</button></div></div>`).join("") || '<div class="st">No members yet.</div>'}
   <h1 style="margin-top:16px">Add member</h1>
-  <label>Name</label><input id="n_n" autocomplete="off" maxlength="30">
+  <label>Name (shown in the app)</label><input id="n_n" autocomplete="off" maxlength="30">
+  <label>Email</label><input id="n_m" type="email" autocomplete="off" autocapitalize="off">
   <label>Initial password (at least 8 characters; the member can change it)</label>
   <div class="row"><input id="n_p" autocomplete="off"><button class="sec" id="n_g" type="button">Generate</button></div>
   <div class="err" id="n_e"></div><div class="row"><button id="n_a">Add</button><button class="sec" id="n_x">Close</button></div>`);
   $("#n_x").onclick = () => o.remove();
   $("#n_g").onclick = () => { $("#n_p").value = genPass(14); };
   $("#n_a").onclick = () => busy($("#n_a"), $("#n_e"), async () => {
-    const n = $("#n_n").value, p = $("#n_p").value; $("#n_a").textContent = "Creating…";
-    await addUser(n, p); o.remove(); toast(`User created. Initial password: ${p}`); openUsers();
+    const n = $("#n_n").value, em = $("#n_m").value, p = $("#n_p").value; $("#n_a").textContent = "Creating…";
+    await addUser(n, em, p); o.remove(); toast(`User created. Initial password: ${p}`); openUsers();
   }).then(ok => { if (!ok) $("#n_a").textContent = "Add"; });
+  o.querySelectorAll("[data-pf]").forEach(b => b.onclick = () => { o.remove(); openProfile(b.dataset.pf); });
   o.querySelectorAll("[data-r]").forEach(b => b.onclick = async () => {
     const u = userById(b.dataset.r), p = prompt(`New password for ${u.name} (at least 8 characters):`, genPass(14));
     if (!p) return; b.disabled = true;
