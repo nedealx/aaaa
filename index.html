@@ -2,10 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://api.github.com; manifest-src data:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<title>Vault</title>
+<title>AAAA</title>
 <style>
 :root{--bg:#fff;--card:#fff;--tx:#000;--mut:#666;--bd:#d9d9d9;color-scheme:light}
 @media(prefers-color-scheme:dark){:root{--bg:#000;--card:#0a0a0a;--tx:#fff;--mut:#9b9b9b;--bd:#2e2e2e;color-scheme:dark}}
@@ -258,17 +259,37 @@ async function createVault(name, email, pw) {
   S.raw = { v: 2, users: [admin], cats: [{ id: GENERAL, name: "General", u: now }], entries: [] };
   S.meId = admin.id; S.plain = new Map();
   S.priv = await crypto.subtle.importKey("pkcs8", k.pkcs8, RSA, false, ["decrypt"]);
+  await bindToken(admin, pw, true);
   await save();
   return [...rk].map(b => b.toString(16).padStart(2, "0")).join("").replace(/(.{8})(?=.)/g, "$1-");
 }
-async function doLogin(name, pw) {
-  const q = name.trim().toLowerCase(), live = S.raw.users.filter(x => !x.del);
-  const u = live.find(x => x.name.toLowerCase() === q) || live.find(x => (x.email || "").toLowerCase() === q);
+async function doLogin(email, pw) {
+  const q = email.trim().toLowerCase(), live = S.raw.users.filter(x => !x.del);
+  // sign-in is by email only; a legacy account that has no email yet can still use its name once, to set the email
+  const u = live.find(x => (x.email || "").toLowerCase() === q) || live.find(x => !x.email && x.name.toLowerCase() === q);
   if (!u) throw new Error("login");
   const pkcs8 = await unwrapPw(u.w, pw);
   S.priv = await crypto.subtle.importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
   S.meId = u.id; S.plain = new Map();
   await syncPlain();
+  await bindToken(u, pw);
+}
+
+/* GitHub token at rest: encrypted with a key derived from the signed-in user's password */
+const readStored = () => { try { return JSON.parse(localStorage.getItem("gh_cfg") || "null"); } catch (e) { return null; } };
+async function bindToken(u, pw, fresh) {
+  const st = readStored(), tk = st && st.tk, mine = !!tk && tk.uid === u.id && !fresh;
+  S.tkSalt = mine ? tk.salt : b64(rnd(16)); S.tkUid = u.id;
+  S.tkKey = await pwKey(pw, S.tkSalt, ITER);
+  if (!CFG.token && mine) { try { CFG.token = dec.decode(await aesOpen(S.tkKey, tk)); } catch (e) { CFG.token = null; } }
+  await storeToken();
+}
+async function storeToken() {
+  if (!CFG || !CFG.repo) return;
+  const st = readStored(), o = { repo: CFG.repo };
+  if (CFG.token && S.tkKey) o.tk = { uid: S.tkUid, salt: S.tkSalt, iter: ITER, ...(await aesSeal(S.tkKey, enc.encode(CFG.token))) };
+  else if (st && st.tk) o.tk = st.tk;
+  localStorage.setItem("gh_cfg", JSON.stringify(o));
 }
 async function recoverAdmin(hex, nw) {
   const h = hex.replace(/[^0-9a-f]/gi, "");
@@ -278,12 +299,12 @@ async function recoverAdmin(hex, nw) {
   let pkcs8; try { pkcs8 = await aesOpen(await rawKey(rk), a.rec); } catch (e) { throw new Error("Wrong recovery key."); }
   a.w = await wrapPw(pkcs8, nw); a.u = Date.now();
   S.priv = await crypto.subtle.importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
-  S.meId = a.id; S.plain = new Map(); await syncPlain(); await save();
+  S.meId = a.id; S.plain = new Map(); await syncPlain(); await bindToken(a, nw, true); await save();
 }
 async function changePw(old, nw) {
   const m = me(); let pk;
   try { pk = await unwrapPw(m.w, old); } catch (e) { throw new Error("Current password is wrong."); }
-  m.w = await wrapPw(pk, nw); m.u = Date.now(); await save();
+  m.w = await wrapPw(pk, nw); m.u = Date.now(); await bindToken(m, nw, true); await save();
 }
 async function saveEntry(ex, f) {
   const now = Date.now(), m = me();
@@ -399,7 +420,7 @@ async function checkCfg(repo, token) {
   if (r.status === 401) throw new Error("Invalid or expired token.");
   if (r.status === 404) throw new Error("Repo not found, or the token has no access to it.");
   if (!r.ok) throw new Error("GitHub responded " + r.status);
-  CFG = { repo, token }; localStorage.setItem("gh_cfg", JSON.stringify(CFG));
+  CFG = { repo, token }; if (S.priv && S.tkKey) await storeToken(); // before sign-in the token lives only in memory
 }
 
 /* ---------- save / sync ---------- */
@@ -407,7 +428,9 @@ const serialize = () => JSON.stringify(S.raw);
 function cacheRaw() { S.text = serialize(); localStorage.setItem("vault2_cache", S.text); }
 function status(t) { const e = $("#st"); if (e) e.textContent = t; }
 async function save() {
-  cacheRaw(); localStorage.setItem("vault2_dirty", "1"); status("Saving…");
+  cacheRaw(); localStorage.setItem("vault2_dirty", "1");
+  if (!CFG.token) return status("Not connected – saved locally");
+  status("Saving…");
   try {
     for (let i = 0; i < 4; i++) {
       const r = await remotePut(S.text, S.etag);
@@ -422,6 +445,7 @@ async function save() {
 }
 async function refresh() {
   if (!S.priv) return;
+  if (!CFG.token) return openReactivate("This device is not connected to GitHub yet. Paste the activation code from the admin.");
   try {
     const m = await remoteGet();
     if (m && m.sha !== S.etag) { const r = parseRaw(m.text); if (r) { S.raw = mergeRaw(S.raw, r); S.etag = m.sha; cacheRaw(); } }
@@ -429,7 +453,19 @@ async function refresh() {
     if (!me()) return logout("Your account was removed or changed.");
     await syncPlain(); renderList();
     if (localStorage.getItem("vault2_dirty")) await save(); else status("Synced");
-  } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline"); }
+  } catch (e) { console.error(e); S.online = false; status(netStatus(e) || "Offline"); if (e.code === 401) openReactivate("The token was rejected by GitHub. Paste a new activation code from the admin."); }
+}
+function openReactivate(msg) {
+  if (S.reOpen || !S.priv) return; S.reOpen = true;
+  const o = modal(`<h1>Connect this device</h1><p class="meta">${esc(msg)}</p>
+  <label>Activation code</label><textarea id="a_c" rows="3" autocomplete="off" spellcheck="false"></textarea>
+  <div class="err" id="a_e"></div><div class="row"><button id="a_s">Connect</button><button class="sec" id="a_x">Later</button></div>`);
+  const done = () => { S.reOpen = false; o.remove(); };
+  $("#a_x").onclick = done;
+  $("#a_s").onclick = () => busy($("#a_s"), $("#a_e"), async () => {
+    let c; try { c = JSON.parse(atob($("#a_c").value.trim())); } catch (e) { throw new Error("Invalid activation code."); }
+    await checkCfg(String(c.r || ""), String(c.t || "")); done(); toast("Connected"); refresh();
+  });
 }
 
 /* ---------- startup ---------- */
@@ -453,13 +489,18 @@ async function load() {
 }
 async function init() {
   setManifest();
-  try { CFG = JSON.parse(localStorage.getItem("gh_cfg") || "null"); } catch (e) { CFG = null; }
-  if (!CFG || !CFG.repo || !CFG.token) return viewActivate();
-  await load();
+  CFG = readStored();
+  if (!CFG || !CFG.repo) return viewActivate();
+  if (CFG.token) return load(); // old plaintext storage: sign-in will encrypt it
+  if (!CFG.tk) return viewActivate();
+  CFG = { repo: CFG.repo, token: null }; // the token is decrypted only after sign-in
+  S.raw = parseRaw(localStorage.getItem("vault2_cache")); S.etag = null; S.online = false;
+  if (!S.raw) return viewActivate("No local copy yet. Paste the activation code.");
+  S.text = localStorage.getItem("vault2_cache"); viewLogin();
 }
 function setManifest() {
   const icon = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="96" fill="#000"/><rect x="136" y="236" width="240" height="180" rx="24" fill="#fff"/><path d="M186 236v-50a70 70 0 0 1 140 0v50" fill="none" stroke="#fff" stroke-width="32"/><circle cx="256" cy="320" r="24" fill="#000"/></svg>');
-  const man = { name: "Vault", short_name: "Vault", start_url: location.pathname, display: "standalone", background_color: "#000000", theme_color: "#000000",
+  const man = { name: "AAAA", short_name: "AAAA", start_url: location.pathname, display: "standalone", background_color: "#000000", theme_color: "#000000",
     icons: [{ src: icon, sizes: "512x512", type: "image/svg+xml", purpose: "any" }] };
   const l = document.createElement("link"); l.rel = "manifest";
   l.href = "data:application/manifest+json," + encodeURIComponent(JSON.stringify(man));
@@ -468,9 +509,9 @@ function setManifest() {
 
 /* ---------- start screens ---------- */
 const app = () => $("#app");
-function viewMsg(t) { app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1><p>${esc(t)}</p></div>`; }
+function viewMsg(t) { app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} AAAA</h1><p>${esc(t)}</p></div>`; }
 function viewActivate(msg) {
-  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1>
+  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} AAAA</h1>
   <p class="meta">New device: paste the activation code you received from the admin.</p>
   <label>Activation code</label><textarea id="a_c" rows="3" autocomplete="off" spellcheck="false"></textarea>
   <div class="err" id="err">${esc(msg || "")}</div><button id="go">Continue</button>
@@ -486,7 +527,7 @@ function viewActivate(msg) {
 }
 function viewConfig(msg) {
   const old = CFG || {};
-  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1>
+  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} AAAA</h1>
   <p class="meta">Manual setup: the private data repo on GitHub.</p>
   <label>Data repo (user/repo)</label>
   <input id="c_repo" value="${esc(old.repo)}" placeholder="your-name/vault-data" autocapitalize="off" autocomplete="off" spellcheck="false">
@@ -517,7 +558,7 @@ function viewSetup(oldFmt) {
     if (a !== b) return $("#err").textContent = "Passwords do not match.";
     if (oldFmt && !confirm("The old vault in the repo will be replaced. Continue?")) return;
     $("#go").disabled = true; $("#go").textContent = "Creating…";
-    try { const hex = await createVault(n, em, a); localStorage.setItem("vault_last", n); viewRecovery(hex); }
+    try { const hex = await createVault(n, em, a); localStorage.setItem("vault_last", em); viewRecovery(hex); }
     catch (e) { console.error(e); $("#err").textContent = "Error while creating."; $("#go").disabled = false; $("#go").textContent = "Create"; }
   };
 }
@@ -529,18 +570,19 @@ function viewRecovery(hex) {
   $("#go").onclick = () => { viewMain(); };
 }
 function viewLogin(msg) {
-  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} Vault</h1>
-  <label>Name or email</label><input id="l_n" value="${esc(localStorage.getItem("vault_last") || "")}" autocomplete="username" autocapitalize="off">
+  app().innerHTML = `<div class="center box"><h1>${ic("lock", 18)} AAAA</h1>
+  <label>Email</label><input id="l_n" type="email" value="${esc(localStorage.getItem("vault_last") || "")}" autocomplete="username" autocapitalize="off">
   <label>Password</label><input id="l_p" type="password" autocomplete="current-password">
   <div class="err" id="err">${esc(msg || "")}</div><button id="go">Sign in</button>
-  <p class="st">${S.online ? "" : "Offline – using the local copy"}</p>
+  <p class="st">${S.online || !CFG.token ? "" : "Offline – using the local copy"}</p>
   <p class="st"><a href="#" id="rec">Admin recovery</a> · <a href="#" id="act">New device</a></p></div>`;
   const go = async () => {
     $("#err").textContent = ""; $("#go").disabled = true;
     try {
       await doLogin($("#l_n").value, $("#l_p").value);
-      localStorage.setItem("vault_last", me().name); viewMain();
-    } catch (e) { S.priv = null; S.meId = null; $("#err").textContent = "Wrong name or password."; $("#go").disabled = false; }
+      localStorage.setItem("vault_last", me().email || me().name); viewMain();
+      if (!me().email) { toast("Please set your email: you sign in with it"); openProfile(S.meId); }
+    } catch (e) { console.error(e); S.priv = null; S.meId = null; S.tkKey = null; $("#err").textContent = "Wrong email or password."; $("#go").disabled = false; }
   };
   $("#go").onclick = go; $("#l_p").onkeydown = e => { if (e.key === "Enter") go(); };
   $("#rec").onclick = e => { e.preventDefault(); openRecover(); };
@@ -548,7 +590,7 @@ function viewLogin(msg) {
   ($("#l_n").value ? $("#l_p") : $("#l_n")).focus();
 }
 function logout(msg) {
-  clearTimeout(lockTimer); S.priv = null; S.meId = null; S.plain = new Map(); S.open = null; S.shown = {}; S.q = ""; S.cat = ""; S.hist = null;
+  clearTimeout(lockTimer); S.tkKey = null; S.reOpen = false; if (CFG) CFG.token = null; S.priv = null; S.meId = null; S.plain = new Map(); S.open = null; S.shown = {}; S.q = ""; S.cat = ""; S.hist = null;
   document.querySelectorAll(".ov").forEach(x => x.remove());
   viewLogin(msg);
 }
@@ -728,7 +770,7 @@ function openProfile(id) {
   $("#u_s").onclick = () => busy($("#u_s"), $("#u_x"), async () => {
     await updateProfile(id, $("#u_n").value, $("#u_e").value);
     o.remove(); toast("Profile saved");
-    if (self) { localStorage.setItem("vault_last", me().name); const w = $("#who"); if (w) w.innerHTML = `${ic("user", 14)} ${esc(me().name)} · ${isAdmin() ? "admin" : "member"}`; }
+    if (self) { localStorage.setItem("vault_last", me().email || me().name); const w = $("#who"); if (w) w.innerHTML = `${ic("user", 14)} ${esc(me().name)} · ${isAdmin() ? "admin" : "member"}`; }
     renderList(); if (!self) openUsers();
   });
 }
@@ -741,7 +783,7 @@ function openRecover() {
   $("#r_c").onclick = () => o.remove();
   $("#r_s").onclick = () => busy($("#r_s"), $("#r_e"), async () => {
     if ($("#r_p").value.length < 10) throw new Error("Password: at least 10 characters.");
-    await recoverAdmin($("#r_k").value, $("#r_p").value); o.remove(); localStorage.setItem("vault_last", me().name); viewMain();
+    await recoverAdmin($("#r_k").value, $("#r_p").value); o.remove(); localStorage.setItem("vault_last", me().email || me().name); viewMain();
   });
 }
 function openUsers() {
@@ -795,7 +837,7 @@ function openCats() {
   });
 }
 function openConn() {
-  const code = btoa(JSON.stringify({ r: CFG.repo, t: CFG.token }));
+  const code = CFG.token ? btoa(JSON.stringify({ r: CFG.repo, t: CFG.token })) : "";
   const o = modal(`<h1>GitHub connection</h1>
   <label>Data repo</label><input id="g_r" value="${esc(CFG.repo)}" autocapitalize="off" autocomplete="off">
   <label>New token (leave empty to keep the current one)</label><input id="g_t" type="password" autocomplete="off" placeholder="github_pat_...">
@@ -808,6 +850,7 @@ function openConn() {
   $("#g_cp").onclick = () => copy(code, "Code copied");
   $("#g_s").onclick = () => busy($("#g_s"), $("#g_e"), async () => {
     const old = { ...CFG };
+    if (!($("#g_t").value.trim() || old.token)) throw new Error("Enter the token.");
     try { await checkCfg($("#g_r").value, $("#g_t").value.trim() || old.token); }
     catch (e) { CFG = old; throw e; }
     o.remove(); toast("Connection saved"); refresh();
