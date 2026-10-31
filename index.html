@@ -670,7 +670,7 @@ function accLabel(e) {
 }
 function sortKey(e, k) {
   const d = e.d;
-  if (k === "acc") return accNames(e).length;
+  if (k === "acc") return accNames(e).join(", ").toLowerCase(); // by the names shown, so the same people group together
   if (k === "cat") return catName(catOf(d)).toLowerCase();
   if (k === "updated") return d.updated || 0;
   return String(d[k] || "").toLowerCase();
