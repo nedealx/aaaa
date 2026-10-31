@@ -61,6 +61,10 @@ button.sm{padding:6px 10px;font-size:14px}
 .c-k{display:flex;align-items:center}.c-k input{width:16px;height:16px;margin:0;accent-color:var(--tx);cursor:pointer}
 .li.sel{background:rgba(127,127,127,.12)}
 .bulk{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px;margin-bottom:8px;border:1px solid var(--tx);border-radius:10px}
+.bulk .bk{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.bkl{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:12px 0}
+.bkl label{display:flex;align-items:center;gap:10px;font-size:15px;color:var(--tx);margin:0;min-width:0;cursor:pointer}
+.bkl input{width:18px;height:18px;margin:0;flex:none;accent-color:var(--tx)}
 .c-s{min-width:0;color:var(--mut);font-size:13px}
 .lh{padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--bd);user-select:none;text-transform:uppercase;letter-spacing:.04em}
 .lh>div[data-act]{cursor:pointer}
@@ -334,6 +338,11 @@ async function saveEntry(ex, f) {
 async function delEntry(e) {
   const now = Date.now();
   replaceRec({ id: e.id, u: now, del: true }); S.plain.delete(e.id); await save();
+}
+async function delMany(es) { // one save for the whole batch
+  const now = Date.now();
+  for (const e of es) { replaceRec({ id: e.id, u: now, del: true }); S.plain.delete(e.id); }
+  await save();
 }
 async function applyAccess(e, ids) {
   const now = Date.now(), m = me(), dek = await newDek();
@@ -703,7 +712,7 @@ function renderList() {
       <div class="c-a">${canEdit(e) ? ibtn("edit", "edit", "Edit") + ibtn("trash", "del", "Delete") : ""}${ibtn(o ? "up" : "down", "toggle", o ? "Collapse" : "Expand")}</div>
       ${detail}</div>`;
   }).join("");
-  el.innerHTML = `${isAdmin() && S.sel.size ? `<div class="bulk"><b>${S.sel.size} selected</b><button class="sm" data-act="bk-add">Give access…</button><button class="sm sec" data-act="bk-rem">Remove access…</button><button class="sm sec" data-act="bk-clr">Clear</button></div>` : ""}<div class="lst${isAdmin() ? " adm" : ""}"><div class="lh">${isAdmin() ? `<div class="c-k"><input type="checkbox" data-act="selall" aria-label="Select all shown" ${S.sel.size && S.sel.size === S.shownIds.length ? "checked" : ""}></div>` : ""}<div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div>${isAdmin() ? `<div data-act="sort" data-k="acc">Access${arrow("acc")}</div>` : ""}<div></div></div>${rows}</div>
+  el.innerHTML = `${isAdmin() && S.sel.size ? `<div class="bulk"><b>${S.sel.size} selected</b><div class="bk"><button class="sm" data-act="bk-add">Give access…</button><button class="sm sec" data-act="bk-rem">Remove access…</button><button class="sm sec" data-act="bk-del">${ic("trash", 14)} Delete…</button><button class="sm sec" data-act="bk-clr">Clear</button></div></div>` : ""}<div class="lst${isAdmin() ? " adm" : ""}"><div class="lh">${isAdmin() ? `<div class="c-k"><input type="checkbox" data-act="selall" aria-label="Select all shown" ${S.sel.size && S.sel.size === S.shownIds.length ? "checked" : ""}></div>` : ""}<div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div>${isAdmin() ? `<div data-act="sort" data-k="acc">Access${arrow("acc")}</div>` : ""}<div></div></div>${rows}</div>
     <div class="st">${items.length} ${items.length === 1 ? "entry" : "entries"}</div>`;
 }
 document.addEventListener("click", async ev => {
@@ -716,6 +725,12 @@ document.addEventListener("click", async ev => {
   if (act === "menu") return openMenu();
   if (act === "sort") { const k = b.dataset.k; S.sort = S.sort.k === k ? { k, d: -S.sort.d } : { k, d: k === "updated" ? -1 : 1 }; return renderList(); }
   if (act === "selall" && isAdmin()) { S.sel = S.sel.size === S.shownIds.length ? new Set() : new Set(S.shownIds); return renderList(); }
+  if (act === "bk-del" && isAdmin()) {
+    const es = visible().filter(x => S.sel.has(x.id)); if (!es.length) return;
+    if (!confirm(`Delete ${es.length} selected ${es.length === 1 ? "entry" : "entries"}? This cannot be undone.`)) return;
+    try { await delMany(es); S.sel = new Set(); toast(`Deleted ${es.length} ${es.length === 1 ? "entry" : "entries"}`); } catch (er) { console.error(er); toast("Error"); }
+    return renderList();
+  }
   if (act === "bk-clr") { S.sel = new Set(); return renderList(); }
   if ((act === "bk-add" || act === "bk-rem") && isAdmin()) return openBulk(act === "bk-add" ? "add" : "remove");
   if (act === "sel" && isAdmin()) { const id = b.closest("[data-id]").dataset.id; S.sel.has(id) ? S.sel.delete(id) : S.sel.add(id); return renderList(); }
@@ -740,7 +755,7 @@ function openBulk(mode) {
   if (!es.length) return;
   const o = modal(`<h1>${add ? "Give access" : "Remove access"}</h1>
   <p class="meta">${add ? "Choose who should be able to open" : "Choose who should no longer be able to open"} the ${es.length} selected ${es.length === 1 ? "entry" : "entries"}.${add ? "" : " Their data is re-encrypted so the removed members cannot open it any more."} Admins always keep access.</p>
-  ${mem.length ? `<div class="accl" style="column-count:2">${mem.map(u => `<label><input type="checkbox" data-bk="${u.id}"><span class="nw">${esc(u.name)}</span></label>`).join("")}</div>` : '<p class="meta">No members yet.</p>'}
+  ${mem.length ? `<div class="bkl">${mem.map(u => `<label><input type="checkbox" data-bk="${u.id}"><span class="nw">${esc(u.name)}</span></label>`).join("")}</div>` : '<p class="meta">No members yet.</p>'}
   <div class="err" id="bk_e"></div><div class="row"><button id="bk_go">${add ? "Give access" : "Remove access"}</button><button class="sec" id="bk_c">Cancel</button></div>`);
   $("#bk_c").onclick = () => o.remove();
   $("#bk_go").onclick = () => busy($("#bk_go"), $("#bk_e"), async () => {
