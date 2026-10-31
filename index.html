@@ -57,7 +57,10 @@ button.sm{padding:6px 10px;font-size:14px}
 /* list */
 .lst{background:var(--card);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
 .lh,.li{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.4fr) minmax(0,2.2fr) minmax(0,1.8fr) 118px;column-gap:14px;align-items:center}
-.lst.adm .lh,.lst.adm .li{grid-template-columns:minmax(0,.8fr) minmax(0,1.3fr) minmax(0,1.9fr) minmax(0,1.6fr) minmax(0,1.2fr) 118px}
+.lst.adm .lh,.lst.adm .li{grid-template-columns:28px minmax(0,.8fr) minmax(0,1.3fr) minmax(0,1.9fr) minmax(0,1.6fr) minmax(0,1.2fr) 118px}
+.c-k{display:flex;align-items:center}.c-k input{width:16px;height:16px;margin:0;accent-color:var(--tx);cursor:pointer}
+.li.sel{background:rgba(127,127,127,.12)}
+.bulk{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px;margin-bottom:8px;border:1px solid var(--tx);border-radius:10px}
 .c-s{min-width:0;color:var(--mut);font-size:13px}
 .lh{padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--bd);user-select:none;text-transform:uppercase;letter-spacing:.04em}
 .lh>div[data-act]{cursor:pointer}
@@ -93,7 +96,7 @@ button.sm{padding:6px 10px;font-size:14px}
 .hist{font-size:13px;color:var(--mut);margin-top:8px}
 .sm-only{display:none}
 @media(max-width:700px){
-  .lh,.hm,.c-s{display:none}.sm-only{display:inline-block}
+  .lh,.hm,.c-s,.c-k,.bulk{display:none}.sm-only{display:inline-block}
   .li,.lst.adm .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u" "p p";row-gap:4px}
   .li .c-t{grid-area:t}.li .c-a{grid-area:a}
   .li .c-u{grid-area:u;font-size:14px;color:var(--mut)}.li .c-p{grid-area:p;font-size:14px}
@@ -144,7 +147,7 @@ const ico = (n, act, title) => `<button class="ico" data-act="${act}" title="${t
 
 let CFG = null; // { repo, token }
 const S = { raw: null, plain: new Map(), meId: null, priv: null, etag: null, text: null,
-            online: true, open: null, shown: {}, q: "", cat: "", hist: null, sort: { k: "title", d: 1 } };
+            online: true, open: null, sel: new Set(), shownIds: [], shown: {}, q: "", cat: "", hist: null, sort: { k: "title", d: 1 } };
 const enc = new TextEncoder(), dec = new TextDecoder();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -338,6 +341,25 @@ async function applyAccess(e, ids) {
   const nd = { ...e.d, updated: now, updatedBy: m.name, updatedById: m.id, history: [...(e.d.history || []), { t: now, by: m.name, byId: m.id, f: ["access"] }].slice(-MAX_HIST) };
   replaceRec(await seal(e.id, nd, dek, all, now));
   S.plain.set(e.id, { u: now, dek, data: nd }); await save();
+}
+async function applyAccessBulk(es, ids, mode) { // admin: give or take away access to several entries with ONE save
+  const now = Date.now(), m = me(); let n = 0;
+  for (const e of es) {
+    const cur = Object.keys(e.rec.k || {});
+    const next = mode === "add" ? [...new Set([...cur, ...ids])] : cur.filter(x => !ids.includes(x));
+    if (next.length === cur.length && next.every(x => cur.includes(x))) continue;
+    const nd = { ...e.d, updated: now, updatedBy: m.name, updatedById: m.id, history: [...(e.d.history || []), { t: now, by: m.name, byId: m.id, f: ["access"] }].slice(-MAX_HIST) };
+    if (mode === "add") { // same key, wrapped for the new users
+      const raw = await crypto.subtle.exportKey("raw", e.p.dek), k = { ...e.rec.k };
+      for (const id of ids) { const u = userById(id); if (!k[id] && u && !u.del) k[id] = await wrapFor(u, raw); }
+      replaceRec(await seal(e.id, nd, e.p.dek, null, now, k)); S.plain.set(e.id, { u: now, dek: e.p.dek, data: nd });
+    } else { // new key, so the removed users cannot open it any more
+      const dek = await newDek(); replaceRec(await seal(e.id, nd, dek, next, now)); S.plain.set(e.id, { u: now, dek, data: nd });
+    }
+    n++;
+  }
+  if (n) await save();
+  return n;
 }
 async function addUser(name, email, pw) {
   name = name.trim(); email = email.trim();
@@ -595,7 +617,7 @@ function viewLogin(msg) {
   ($("#l_n").value ? $("#l_p") : $("#l_n")).focus();
 }
 function logout(msg) {
-  clearTimeout(lockTimer); S.tkKey = null; S.reOpen = false; if (CFG) CFG.token = null; S.priv = null; S.meId = null; S.plain = new Map(); S.open = null; S.shown = {}; S.q = ""; S.cat = ""; S.hist = null;
+  clearTimeout(lockTimer); S.tkKey = null; S.reOpen = false; if (CFG) CFG.token = null; S.priv = null; S.meId = null; S.plain = new Map(); S.sel = new Set(); S.open = null; S.shown = {}; S.q = ""; S.cat = ""; S.hist = null;
   document.querySelectorAll(".ov").forEach(x => x.remove());
   viewLogin(msg);
 }
@@ -653,6 +675,7 @@ function renderList() {
     const c = typeof x === "number" ? x - y : cmp(x, y);
     return c * S.sort.d || cmp(a.d.title || "", b.d.title || "");
   });
+  S.shownIds = items.map(e => e.id); S.sel = new Set([...S.sel].filter(id => S.shownIds.includes(id)));
   if (!items.length) { el.innerHTML = `<div class="st">${all.length ? "No results." : "No passwords visible to you. Press + to add the first one."}</div>`; return; }
   const mems = members(), arrow = k => S.sort.k === k ? (S.sort.d > 0 ? " ▲" : " ▼") : "";
   const rows = items.map(e => {
@@ -670,7 +693,8 @@ function renderList() {
       <div class="foot"><span>Created by <b>${esc(dispName(d.createdById, d.createdBy))}</b>, ${esc(fmt(d.created))}</span><span>Modified by <b>${esc(dispName(d.updatedById, d.updatedBy))}</b>, ${esc(fmt(d.updated))}</span>
         <a data-act="hist">${ic("clock", 14)} ${S.hist === e.id ? "Hide history" : "History"}</a></div>
       ${S.hist === e.id ? `<div class="hist">${hist}</div>` : ""}</div>`;
-    return `<div class="li" data-id="${e.id}">
+    return `<div class="li${S.sel.has(e.id) ? " sel" : ""}" data-id="${e.id}">
+      ${isAdmin() ? `<div class="c-k"><input type="checkbox" data-act="sel" aria-label="Select" ${S.sel.has(e.id) ? "checked" : ""}></div>` : ""}
       <div class="c-c hm nw"><span class="tag">${esc(cn)}</span></div>
       <div class="c-t nw"><span class="t" data-act="toggle" title="${esc(d.title)}">${esc(d.title)}</span><span class="sm-only tag" style="margin-left:6px">${esc(cn)}</span></div>
       <div class="c-u"><span class="un nw" title="${esc(d.user)}">${esc(d.user)}</span>${d.user ? ico("copy", "cu", "Copy username") : ""}</div>
@@ -679,7 +703,7 @@ function renderList() {
       <div class="c-a">${canEdit(e) ? ibtn("edit", "edit", "Edit") + ibtn("trash", "del", "Delete") : ""}${ibtn(o ? "up" : "down", "toggle", o ? "Collapse" : "Expand")}</div>
       ${detail}</div>`;
   }).join("");
-  el.innerHTML = `<div class="lst${isAdmin() ? " adm" : ""}"><div class="lh"><div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div>${isAdmin() ? `<div data-act="sort" data-k="acc">Access${arrow("acc")}</div>` : ""}<div></div></div>${rows}</div>
+  el.innerHTML = `${isAdmin() && S.sel.size ? `<div class="bulk"><b>${S.sel.size} selected</b><button class="sm" data-act="bk-add">Give access…</button><button class="sm sec" data-act="bk-rem">Remove access…</button><button class="sm sec" data-act="bk-clr">Clear</button></div>` : ""}<div class="lst${isAdmin() ? " adm" : ""}"><div class="lh">${isAdmin() ? `<div class="c-k"><input type="checkbox" data-act="selall" aria-label="Select all shown" ${S.sel.size && S.sel.size === S.shownIds.length ? "checked" : ""}></div>` : ""}<div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div>${isAdmin() ? `<div data-act="sort" data-k="acc">Access${arrow("acc")}</div>` : ""}<div></div></div>${rows}</div>
     <div class="st">${items.length} ${items.length === 1 ? "entry" : "entries"}</div>`;
 }
 document.addEventListener("click", async ev => {
@@ -691,6 +715,10 @@ document.addEventListener("click", async ev => {
   if (act === "clr") { S.q = ""; syncQ(); renderList(); const q = $("#q"); if (q) q.focus(); return; }
   if (act === "menu") return openMenu();
   if (act === "sort") { const k = b.dataset.k; S.sort = S.sort.k === k ? { k, d: -S.sort.d } : { k, d: k === "updated" ? -1 : 1 }; return renderList(); }
+  if (act === "selall" && isAdmin()) { S.sel = S.sel.size === S.shownIds.length ? new Set() : new Set(S.shownIds); return renderList(); }
+  if (act === "bk-clr") { S.sel = new Set(); return renderList(); }
+  if ((act === "bk-add" || act === "bk-rem") && isAdmin()) return openBulk(act === "bk-add" ? "add" : "remove");
+  if (act === "sel" && isAdmin()) { const id = b.closest("[data-id]").dataset.id; S.sel.has(id) ? S.sel.delete(id) : S.sel.add(id); return renderList(); }
   const card = b.closest("[data-id]"); const e = card && visible().find(x => x.id === card.dataset.id);
   if (!e) return;
   if (act === "toggle") { S.open = S.open === e.id ? null : e.id; renderList(); }
@@ -707,6 +735,21 @@ document.addEventListener("click", async ev => {
     renderList();
   }
 });
+function openBulk(mode) {
+  const es = visible().filter(e => S.sel.has(e.id)), mem = members(), add = mode === "add";
+  if (!es.length) return;
+  const o = modal(`<h1>${add ? "Give access" : "Remove access"}</h1>
+  <p class="meta">${add ? "Choose who should be able to open" : "Choose who should no longer be able to open"} the ${es.length} selected ${es.length === 1 ? "entry" : "entries"}.${add ? "" : " Their data is re-encrypted so the removed members cannot open it any more."} Admins always keep access.</p>
+  ${mem.length ? `<div class="accl" style="column-count:2">${mem.map(u => `<label><input type="checkbox" data-bk="${u.id}"><span class="nw">${esc(u.name)}</span></label>`).join("")}</div>` : '<p class="meta">No members yet.</p>'}
+  <div class="err" id="bk_e"></div><div class="row"><button id="bk_go">${add ? "Give access" : "Remove access"}</button><button class="sec" id="bk_c">Cancel</button></div>`);
+  $("#bk_c").onclick = () => o.remove();
+  $("#bk_go").onclick = () => busy($("#bk_go"), $("#bk_e"), async () => {
+    const ids = [...o.querySelectorAll("input[data-bk]:checked")].map(i => i.dataset.bk);
+    if (!ids.length) throw new Error("Choose at least one member.");
+    const n = await applyAccessBulk(es, ids, mode);
+    o.remove(); S.sel = new Set(); renderList(); toast(n ? `Access updated on ${n} ${n === 1 ? "entry" : "entries"}` : "Nothing to change");
+  });
+}
 async function copy(t, msg, clear) {
   try { await navigator.clipboard.writeText(t || ""); toast(msg); } catch (e) { toast("Could not copy"); return; }
   if (clear) setTimeout(() => navigator.clipboard.writeText(" ").catch(() => {}), CLIP_MS);
