@@ -57,6 +57,8 @@ button.sm{padding:6px 10px;font-size:14px}
 /* list */
 .lst{background:var(--card);border:1px solid var(--bd);border-radius:10px;overflow:hidden}
 .lh,.li{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.4fr) minmax(0,2.2fr) minmax(0,1.8fr) 118px;column-gap:14px;align-items:center}
+.lst.adm .lh,.lst.adm .li{grid-template-columns:minmax(0,.8fr) minmax(0,1.3fr) minmax(0,1.9fr) minmax(0,1.6fr) minmax(0,1.2fr) 118px}
+.c-s{min-width:0;color:var(--mut);font-size:13px}
 .lh{padding:8px 14px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--bd);user-select:none;text-transform:uppercase;letter-spacing:.04em}
 .lh>div[data-act]{cursor:pointer}
 .lh>div[data-act]:hover{color:var(--tx)}
@@ -91,8 +93,8 @@ button.sm{padding:6px 10px;font-size:14px}
 .hist{font-size:13px;color:var(--mut);margin-top:8px}
 .sm-only{display:none}
 @media(max-width:700px){
-  .lh,.hm{display:none}.sm-only{display:inline-block}
-  .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u" "p p";row-gap:4px}
+  .lh,.hm,.c-s{display:none}.sm-only{display:inline-block}
+  .li,.lst.adm .li{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"t a" "u u" "p p";row-gap:4px}
   .li .c-t{grid-area:t}.li .c-a{grid-area:a}
   .li .c-u{grid-area:u;font-size:14px;color:var(--mut)}.li .c-p{grid-area:p;font-size:14px}
   .zones{grid-template-columns:1fr}
@@ -212,7 +214,8 @@ function matches(e, q) {
   const toks = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const d = e.d, tags = (d.tags || []).map(t => t.toLowerCase());
   const hay = [d.title, d.user, d.reg, d.url, d.notes, catName(catOf(d)), ...(d.tags || [])].join("\n").toLowerCase();
-  return toks.every(t => t[0] === "#" ? (t.length === 1 || tags.some(x => x.startsWith(t.slice(1)))) : hay.includes(t));
+  const acc = isAdmin() ? accNames(e).map(x => x.toLowerCase()) : null;
+  return toks.every(t => t[0] === "@" && acc ? (t.length === 1 || acc.some(x => x.startsWith(t.slice(1)))) : t[0] === "#" ? (t.length === 1 || tags.some(x => x.startsWith(t.slice(1)))) : hay.includes(t));
 }
 function parseRaw(t) {
   try { const o = JSON.parse(t); if (o && o.v === 2 && Array.isArray(o.users) && Array.isArray(o.entries)) { o.cats = o.cats || []; return o; } } catch (e) {}
@@ -600,7 +603,7 @@ function logout(msg) {
 /* ---------- main screen ---------- */
 function viewMain() {
   app().innerHTML = `<div class="wrap"><div class="bar"><div class="row">
-    <div class="sw"><input id="q" placeholder="Search…" autocomplete="off"><button class="ico clr" data-act="clr" title="Clear search" aria-label="Clear search">${ic("x", 16)}</button></div>
+    <div class="sw"><input id="q" placeholder="${isAdmin() ? "Search… (#tag, @member)" : "Search…"}" autocomplete="off"><button class="ico clr" data-act="clr" title="Clear search" aria-label="Clear search">${ic("x", 16)}</button></div>
     <button class="ib" id="add" title="Add entry" aria-label="Add entry">${ic("plus")}</button>
     <button class="ib sec" id="sync" title="Sync" aria-label="Sync">${ic("refresh")}</button>
     <button class="ib sec" data-act="menu" title="Menu" aria-label="Menu">${ic("menu")}</button>
@@ -627,8 +630,16 @@ function renderChips() {
   const chip = (v, label, n) => `<button class="chip${S.cat === v ? " on" : ""}" data-act="chip" data-v="${esc(v)}">${esc(label)} <span>${n}</span></button>`;
   el.innerHTML = chip("", "All", ents.length) + list.map(c => chip(c.id, c.name, m.get(c.id))).join("");
 }
+/* who (besides the admins, who always see everything) can open an entry: admin-only information */
+const accNames = e => members().filter(u => e.rec && e.rec.k && e.rec.k[u.id]).map(u => u.name);
+function accLabel(e) {
+  const n = accNames(e), tot = members().length;
+  if (!n.length) return { t: "—", tip: "Only you and the admins" };
+  return { t: tot > 1 && n.length === tot ? "All members" : n.join(", "), tip: n.join(", ") };
+}
 function sortKey(e, k) {
   const d = e.d;
+  if (k === "acc") return accNames(e).length;
   if (k === "cat") return catName(catOf(d)).toLowerCase();
   if (k === "updated") return d.updated || 0;
   return String(d[k] || "").toLowerCase();
@@ -664,10 +675,11 @@ function renderList() {
       <div class="c-t nw"><span class="t" data-act="toggle" title="${esc(d.title)}">${esc(d.title)}</span><span class="sm-only tag" style="margin-left:6px">${esc(cn)}</span></div>
       <div class="c-u"><span class="un nw" title="${esc(d.user)}">${esc(d.user)}</span>${d.user ? ico("copy", "cu", "Copy username") : ""}</div>
       <div class="c-p"><span class="pw nw">${sh ? esc(d.pass) : "••••••••"}</span>${ico(sh ? "eye-off" : "eye", "show", sh ? "Hide password" : "Show password")}${ico("copy", "cp", "Copy password")}</div>
+      ${isAdmin() ? `<div class="c-s nw" title="${esc(accLabel(e).tip)}">${esc(accLabel(e).t)}</div>` : ""}
       <div class="c-a">${canEdit(e) ? ibtn("edit", "edit", "Edit") + ibtn("trash", "del", "Delete") : ""}${ibtn(o ? "up" : "down", "toggle", o ? "Collapse" : "Expand")}</div>
       ${detail}</div>`;
   }).join("");
-  el.innerHTML = `<div class="lst"><div class="lh"><div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div><div></div></div>${rows}</div>
+  el.innerHTML = `<div class="lst${isAdmin() ? " adm" : ""}"><div class="lh"><div data-act="sort" data-k="cat">Category${arrow("cat")}</div><div data-act="sort" data-k="title">Title${arrow("title")}</div><div data-act="sort" data-k="user">Username${arrow("user")}</div><div>Password</div>${isAdmin() ? `<div data-act="sort" data-k="acc">Access${arrow("acc")}</div>` : ""}<div></div></div>${rows}</div>
     <div class="st">${items.length} ${items.length === 1 ? "entry" : "entries"}</div>`;
 }
 document.addEventListener("click", async ev => {
